@@ -157,6 +157,27 @@ class TestScanDrawing:
         scan_drawing(drawing)
         assert document._log == []
 
+    def test_busy_errors_are_reraised_for_the_retry_wrapper(self):
+        # A busy rejection must reach with_busy_retry, not silently turn a
+        # row into "no model".
+        class BusyError(Exception):
+            hresult = com.RPC_E_CALL_REJECTED
+
+        class BusyRow:
+            Visible = True
+
+            def Item(self, index):
+                return fakes.Cell(str(index))
+
+            @property
+            def ReferencedRows(self):
+                raise BusyError("call was rejected by callee")
+
+        import pytest
+
+        with pytest.raises(BusyError):
+            scan_drawing(drawing_with([BusyRow()]))
+
 
 class TestFindColumns:
     def test_maps_by_property_type_and_id(self):
@@ -180,3 +201,24 @@ class TestFindColumns:
         ]
         mapping = find_columns(fakes.PartsList(columns, []))
         assert (mapping.item, mapping.part_number, mapping.description) == (1, 2, 3)
+
+    def test_a_title_lookalike_never_preempts_an_authoritative_column(self):
+        # A custom column merely TITLED like the target sits to the left of
+        # the real, PropertyType-identified column: the real one must win.
+        columns = [
+            fakes.Column("ITEM", 0),  # custom column that just says ITEM
+            fakes.Column("POS", com.kItemPartsListProperty),  # the real one
+            fakes.Column("DESCRIPTION", 0),  # custom look-alike
+            fakes.Column("NOTES", com.kFileProperty, (fakes.DESIGN_TRACKING, 29)),
+        ]
+        mapping = find_columns(fakes.PartsList(columns, []))
+        assert mapping.item == 2
+        assert mapping.description == 4
+
+    def test_titles_still_fill_slots_the_ids_could_not(self):
+        columns = [
+            fakes.Column("POS", com.kItemPartsListProperty),
+            fakes.Column("PART NUMBER", com.kFileProperty, id_error=True),
+        ]
+        mapping = find_columns(fakes.PartsList(columns, []))
+        assert (mapping.item, mapping.part_number) == (1, 2)

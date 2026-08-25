@@ -8,7 +8,9 @@ Setup: Inventor running, only the test drawing open, AutoFace.exe on disk.
 
 ## 1. Self-test and probes
 
-- [ ] `AutoFace.exe --selftest` prints `SELF-TEST PASSED`.
+- [ ] `AutoFace.exe --selftest` writes `AutoFace-selftest-results.txt` next
+      to the exe ending in `SELF-TEST PASSED`. (The exe is a windowed binary,
+      so the console shows nothing — read the file.)
 - [ ] `AutoFace.exe --probe all` writes `AutoFace-probe-results.txt` next to
       the exe. Read it top to bottom:
   - [ ] **session**: your drawing is listed with `type=12292`; parts show

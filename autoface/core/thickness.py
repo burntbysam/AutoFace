@@ -71,11 +71,15 @@ class ThicknessTable:
 
     def __init__(self, table: dict[str, str]) -> None:
         self._by_sixteenths: dict[int, str] = {}
+        self.ignored: list[str] = []  # malformed keys, surfaced in the UI log
         for key, label in table.items():
             try:
                 inches = float(str(key).strip())
             except ValueError:
-                continue  # a malformed key must not take the app down
+                # A malformed key must not take the app down, but silently
+                # dropping it would turn a config typo into mystery skips.
+                self.ignored.append(str(key))
+                continue
             self._by_sixteenths[to_sixteenths(inches)] = str(label)
 
     def label_for(self, sixteenths: int) -> str | None:

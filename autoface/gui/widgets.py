@@ -78,6 +78,7 @@ class SummaryDialog(QDialog):
         self,
         result: RunResult,
         flag_list: list[str],
+        skipped_total: int | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -91,12 +92,15 @@ class SummaryDialog(QDialog):
         heading.setStyleSheet("font-size: 16px; font-weight: 600;")
         layout.addWidget(heading)
 
-        counts = QLabel(
-            f"Exported {result.exported} · Skipped {result.skipped} · "
+        # skipped_total includes preview-classified skips, so this number
+        # matches the saved .txt log exactly.
+        skipped = result.skipped if skipped_total is None else skipped_total
+        self.counts_label = QLabel(
+            f"Exported {result.exported} · Skipped {skipped} · "
             f"Failed {result.failed}"
         )
-        counts.setWordWrap(True)
-        layout.addWidget(counts)
+        self.counts_label.setWordWrap(True)
+        layout.addWidget(self.counts_label)
 
         detail = QTextEdit()
         detail.setReadOnly(True)

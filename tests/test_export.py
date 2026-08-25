@@ -55,6 +55,8 @@ class TestNeverSave:
 
     def test_created_flat_pattern_is_deleted_after_export(self, tmp_path):
         document = fakes.Document("C:\\m\\part.ipt", has_flat_pattern=False)
+        document.Dirty = False  # a clean part, the normal case
+        document._log.clear()
         app = session_with(document)
         target = tmp_path / "RUN 11" / "125" / "8640-1101-1.dwg"
 
@@ -67,8 +69,26 @@ class TestNeverSave:
         assert calls.index("DataIO.WriteDataToFile") < calls.index(
             "FlatPattern.Delete"
         )
+        # Clean before, so AutoFace's own dirtying is cleared again.
         assert ("part.ipt", "Dirty=", False) in document._log
         assert "Close" not in calls  # the drawing still references it
+        never_saved(document._log)
+
+    def test_a_users_own_dirty_flag_is_never_cleared(self, tmp_path):
+        # The part already had unsaved USER edits before AutoFace touched it.
+        # Clearing Dirty would make Inventor silently discard them on close.
+        document = fakes.Document("C:\\m\\part.ipt", has_flat_pattern=False)
+        assert document.Dirty is True  # user edits pending
+        app = session_with(document)
+        target = tmp_path / "RUN 11" / "125" / "8640-1101-1.dwg"
+
+        outcome = export_row(app, plan_row(target), "FLAT PATTERN DWG")
+
+        assert outcome.status == "exported"
+        calls = [entry[1] for entry in document._log]
+        assert "FlatPattern.Delete" in calls  # our flat pattern still undone
+        assert ("part.ipt", "Dirty=", False) not in document._log
+        assert document.Dirty is True
         never_saved(document._log)
 
     def test_created_flat_pattern_is_deleted_even_when_the_export_fails(

@@ -13,7 +13,12 @@ def flag_lines(plan: Plan, result: RunResult | None = None) -> list[str]:
     if result is not None:
         for outcome in result.outcomes:
             if outcome.status != "exported" or outcome.row.flags:
-                lines.append(outcome.line)
+                line = outcome.line
+                if outcome.row.flags:
+                    # The cross-check (and any other row flag) must survive
+                    # into the summary even for rows that exported fine.
+                    line += " — " + "; ".join(outcome.row.flags)
+                lines.append(line)
                 reported.add(id(outcome.row))
         for note in result.notes:
             lines.append(note)
@@ -33,6 +38,16 @@ def flag_lines(plan: Plan, result: RunResult | None = None) -> list[str]:
     return lines
 
 
+def total_skipped(plan: Plan, result: RunResult) -> int:
+    """Run-time skips plus preview-classified skips.
+
+    The one number every surface (summary dialog, status bar, saved log)
+    must agree on — the preview rules rows out before the run ever sees
+    them, and the user counts those as skipped too.
+    """
+    return result.skipped + _preview_skips(plan)
+
+
 def summarize_run(
     plan: Plan, result: RunResult, output_root: str, timestamp: str
 ) -> str:
@@ -42,7 +57,7 @@ def summarize_run(
         f"Output folder: {output_root or '(not set)'}",
         "",
         f"Exported: {result.exported}",
-        f"Skipped:  {result.skipped + _preview_skips(plan)}",
+        f"Skipped:  {total_skipped(plan, result)}",
         f"Failed:   {result.failed}",
     ]
     flags = flag_lines(plan, result)

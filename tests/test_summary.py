@@ -56,6 +56,44 @@ def test_run_outcomes_replace_preview_lines_for_run_rows():
     assert any("Unfold failed" in line for line in lines)
 
 
+def test_row_flags_survive_into_the_summary_even_for_exported_rows():
+    # The thickness cross-check values must reach the log, not just the
+    # preview tooltip.
+    drawing = ScannedDrawing(
+        path="C:\\dwg\\8640-01101-I.idw",
+        rows=(
+            ScannedRow(
+                "1",
+                "PN-1",
+                "SHEET,AL,SMOOTH,.190,10X10",  # disagrees with the model
+                ModelKind.SHEET_METAL,
+                model_path="C:\\m\\1.ipt",
+                thickness_cm=0.125 * INCH,
+                has_flat_pattern=True,
+            ),
+        ),
+    )
+    plan = build_plan([drawing], "C:\\out", TABLE, path_exists=lambda p: False)
+    row = plan.exportable[0]
+    assert row.flags  # the cross-check flag is on the row
+    result = RunResult(outcomes=[RowOutcome(row=row, status="exported")])
+    lines = flag_lines(plan, result)
+    assert any("cross-check" in line and "exported" in line for line in lines)
+
+
+def test_total_skipped_counts_preview_and_run_skips():
+    from autoface.core.summary import total_skipped
+
+    plan = make_plan()  # one export row, one preview skip
+    export_row = plan.exportable[0]
+    result = RunResult(
+        outcomes=[
+            RowOutcome(row=export_row, status="skipped", detail="collision")
+        ]
+    )
+    assert total_skipped(plan, result) == 2  # 1 preview + 1 run-time
+
+
 def test_summarize_run_counts_and_header():
     plan = make_plan()
     export_row = plan.exportable[0]

@@ -29,7 +29,7 @@ from .. import __version__
 from ..config import Config, load_config, save_config
 from ..core.models import Plan, RowOutcome, RunResult, ScannedDrawing
 from ..core.pipeline import build_plan
-from ..core.summary import flag_lines, summarize_run
+from ..core.summary import flag_lines, summarize_run, total_skipped
 from ..core.thickness import ThicknessTable
 from ..updater import installer
 from ..updater.github import (
@@ -133,6 +133,7 @@ class ScanWorker(QThread):
         except inventor_com.InventorUnavailable as exc:
             self.failed.emit(str(exc))
             return
+        app = None
         try:
             app = inventor_com.attach()
             drawings = inventor_com.with_busy_retry(lambda: scan_session(app))
@@ -146,6 +147,8 @@ class ScanWorker(QThread):
             self.failed.emit(inventor_com.error_text(exc))
             return
         finally:
+            # Drop the COM proxy before tearing down COM for this thread.
+            app = None  # noqa: F841
             inventor_com.uninitialize_thread()
         self.scanned.emit(drawings)
 
@@ -176,6 +179,7 @@ class ExportWorker(QThread):
         except inventor_com.InventorUnavailable as exc:
             self.failed.emit(str(exc))
             return
+        app = None
         try:
             app = inventor_com.attach()
             result = run_export(
@@ -196,6 +200,8 @@ class ExportWorker(QThread):
             self.failed.emit(inventor_com.error_text(exc))
             return
         finally:
+            # Drop the COM proxy before tearing down COM for this thread.
+            app = None  # noqa: F841
             inventor_com.uninitialize_thread()
         self.finished_run.emit(result)
 
@@ -357,10 +363,11 @@ class MainWindow(QMainWindow):
 
     def _rebuild_plan(self, describe_in_log: bool = True) -> None:
         assert self._scanned is not None
+        table = ThicknessTable(self._config.thickness_table)
         plan = build_plan(
             self._scanned,
             self._config.output_root,
-            ThicknessTable(self._config.thickness_table),
+            table,
         )
         self._plan = plan
         self.preview.show_plan(plan)
@@ -376,6 +383,12 @@ class MainWindow(QMainWindow):
                 f"Scanned {drawings} drawing(s): {total} parts list row(s), "
                 f"{exportable} to export, {total - exportable} to skip."
             )
+            if table.ignored:
+                self._append(
+                    "Config problem: ignored malformed thickness table "
+                    f"key(s) {', '.join(repr(k) for k in table.ignored)} — "
+                    'keys must be inches as decimals, e.g. "0.125".'
+                )
             for note in plan.drawing_notes:
                 self._append(f"Note: {note}")
             for line in flag_lines(plan):
@@ -423,8 +436,11 @@ class MainWindow(QMainWindow):
             progress.close()
             self._clear_export_thread()
             self._result = result
+            skipped = (
+                total_skipped(self._plan, result) if self._plan else result.skipped
+            )
             self.statusBar().showMessage(
-                f"Done — exported {result.exported}, skipped {result.skipped}, "
+                f"Done — exported {result.exported}, skipped {skipped}, "
                 f"failed {result.failed}"
             )
             self._show_summary(result)
@@ -455,7 +471,9 @@ class MainWindow(QMainWindow):
     def _show_summary(self, result: RunResult) -> None:
         assert self._plan is not None
         flags = flag_lines(self._plan, result)
-        dialog = SummaryDialog(result, flags, self)
+        dialog = SummaryDialog(
+            result, flags, total_skipped(self._plan, result), self
+        )
         dialog.save_button.clicked.connect(lambda: self._save_log(result))
         dialog.exec()
 
@@ -648,19 +666,50 @@ class MainWindow(QMainWindow):
         thread.start()
 
     def closeEvent(self, event) -> None:
-        """Let in-flight background work finish so Qt does not warn on teardown."""
-        # run() returns on its own once each job completes or times out; quit()
-        # would only affect an event loop, which these threads do not run.
+        """Never tear down a live worker: a QThread destroyed while running
+        aborts the process, and an export worker is mid-COM-call in Inventor.
+        """
+        export = self._export_thread
+        if export is not None and export.isRunning():
+            answer = QMessageBox.question(
+                self,
+                "Export in progress",
+                "An export is running. Stop after the current part and exit?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+            export.cancel()
+            self.statusBar().showMessage("Finishing the current part…")
+            QApplication.processEvents()
+            # Cancellation lands between rows; one part can legitimately take
+            # a while (a big Unfold, a busy-retry cycle), so wait generously.
+            if not export.wait(120_000):
+                self.statusBar().showMessage(
+                    "Still exporting — try closing again when it finishes"
+                )
+                event.ignore()
+                return
+
+        # The remaining workers finish on their own in bounded time; a scan
+        # or update check that will not die must still not be destroyed live.
         for thread in (
             self._update_thread,
             self._install_thread,
             self._scan_thread,
-            self._export_thread,
         ):
             if thread is not None and thread.isRunning():
                 if hasattr(thread, "cancel"):
                     thread.cancel()
-                thread.wait(3000)
+                if not thread.wait(15_000):
+                    self.statusBar().showMessage(
+                        "Waiting for a background task — try closing again "
+                        "in a moment"
+                    )
+                    event.ignore()
+                    return
         super().closeEvent(event)
 
     def about_rows(self) -> list[tuple[str, str]]:

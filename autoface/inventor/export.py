@@ -74,15 +74,17 @@ def _find_document(app, model_path: str):
         document = documents.ItemByName(model_path)
         if document is not None:
             return document, False
-    except Exception:  # noqa: BLE001 - hidden legacy member; fall through
-        pass
+    except Exception as exc:  # noqa: BLE001 - hidden legacy member; fall through
+        if com.is_busy_error(exc):
+            raise  # let with_busy_retry try the whole lookup again
     try:
         for index in range(1, int(documents.Count) + 1):
             document = documents.Item(index)
             if str(document.FullFileName or "").casefold() == wanted:
                 return document, False
-    except Exception:  # noqa: BLE001 - fall through to an explicit open
-        pass
+    except Exception as exc:  # noqa: BLE001 - fall through to an explicit open
+        if com.is_busy_error(exc):
+            raise  # a swallowed busy here would mislabel the doc as ours
     document = documents.Open(model_path, False)  # invisible, AutoFace's to close
     return document, True
 
@@ -103,7 +105,9 @@ def _release(document, opened_by_us: bool) -> list[str]:
     return notes
 
 
-def _restore_flat_pattern_state(sheet_metal, created: bool) -> list[str]:
+def _restore_flat_pattern_state(
+    sheet_metal, created: bool, was_dirty: bool | None
+) -> list[str]:
     """Undo a flat pattern AutoFace created, so the model is left as found."""
     notes: list[str] = []
     if not created:
@@ -117,12 +121,16 @@ def _restore_flat_pattern_state(sheet_metal, created: bool) -> list[str]:
             "unchanged"
         )
         return notes
-    try:
-        # Best effort: clear the dirty flag so a later Save All has nothing of
-        # ours to write. Harmless if the property refuses.
-        sheet_metal.Document.Dirty = False
-    except Exception:  # noqa: BLE001
-        pass
+    if was_dirty is False:
+        try:
+            # The document was clean before AutoFace touched it, so only
+            # AutoFace's (now deleted) work could have dirtied it: clear the
+            # flag so a later Save All has nothing of ours to write. A
+            # document that was ALREADY dirty keeps its flag — clearing it
+            # would silently discard the user's own unsaved edits.
+            sheet_metal.Document.Dirty = False
+        except Exception:  # noqa: BLE001
+            pass
     return notes
 
 
@@ -166,7 +174,9 @@ def export_row(app, row: PlanRow, dwg_format: str) -> RowOutcome:
         # is always left exactly as it was found.
         if state.sheet_metal is not None:
             notes.extend(
-                _restore_flat_pattern_state(state.sheet_metal, state.created)
+                _restore_flat_pattern_state(
+                    state.sheet_metal, state.created, state.was_dirty
+                )
             )
         notes.extend(_release(document, opened_by_us))
 
@@ -181,6 +191,7 @@ class _FlatPatternState:
     def __init__(self) -> None:
         self.sheet_metal = None
         self.created = False
+        self.was_dirty: bool | None = None  # Dirty BEFORE AutoFace touched it
 
 
 def _export_resolved(
@@ -192,6 +203,10 @@ def _export_resolved(
     state.sheet_metal = sheet_metal = document.ComponentDefinition
 
     if not bool(sheet_metal.HasFlatPattern):
+        try:
+            state.was_dirty = bool(document.Dirty)
+        except Exception:  # noqa: BLE001 - unknown means never clear it
+            state.was_dirty = None
         try:
             sheet_metal.Unfold()
             state.created = True

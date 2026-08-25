@@ -153,6 +153,64 @@ class TestScanFlow:
         assert not window.export_button.isEnabled()
 
 
+class TestSummaryDialog:
+    def test_skipped_count_matches_the_saved_log(self, qapp):
+        from autoface.core.models import RunResult
+        from autoface.gui.widgets import SummaryDialog
+
+        dialog = SummaryDialog(RunResult(), [], skipped_total=5)
+        try:
+            assert "Skipped 5" in dialog.counts_label.text()
+        finally:
+            dialog.deleteLater()
+
+
+class TestCloseGuard:
+    def test_declining_the_close_question_keeps_the_window_open(
+        self, qapp, window, monkeypatch
+    ):
+        from PySide6.QtCore import QThread
+
+        class SlowWorker(QThread):
+            def __init__(self):
+                super().__init__()
+                self._cancelled = False
+
+            def cancel(self):
+                self._cancelled = True
+
+            def run(self):
+                while not self._cancelled:
+                    time.sleep(0.02)
+
+        worker = SlowWorker()
+        window._export_thread = worker
+        worker.start()
+        try:
+            monkeypatch.setattr(
+                QMessageBox,
+                "question",
+                staticmethod(
+                    lambda *a, **k: QMessageBox.StandardButton.No
+                ),
+            )
+            window.show()
+            window.close()
+            assert window.isVisible(), "close was not refused"
+            assert worker.isRunning(), "the worker must not be torn down"
+        finally:
+            monkeypatch.setattr(
+                QMessageBox,
+                "question",
+                staticmethod(
+                    lambda *a, **k: QMessageBox.StandardButton.Yes
+                ),
+            )
+            window.close()  # accepted: cancels and waits for the worker
+            assert not worker.isRunning()
+            window._export_thread = None
+
+
 class TestFolderPersistence:
     def test_choosing_a_folder_saves_the_config(self, qapp, window, monkeypatch):
         saved: list[str] = []

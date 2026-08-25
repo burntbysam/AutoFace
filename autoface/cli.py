@@ -16,16 +16,16 @@ from .version import describe
 PROBE_NAMES = ("session", "partslist", "thickness", "export", "neversave")
 
 
-def _probe_output_path() -> Path:
+def _output_path(filename: str) -> Path:
     """Next to the exe (or the working directory from source).
 
     AutoFace.exe is a windowed binary, so plain stdout is invisible when it is
-    double-clicked or run from Explorer; the probes always write a file the
-    user can paste back.
+    run from a console or Explorer; the probes and the self-test also write a
+    file the user can actually read.
     """
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent / "AutoFace-probe-results.txt"
-    return Path.cwd() / "AutoFace-probe-results.txt"
+        return Path(sys.executable).resolve().parent / filename
+    return Path.cwd() / filename
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -50,11 +50,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.selftest:
         from .core.selftest import run_selftest
 
-        print(describe())
         ok, lines = run_selftest()
-        for line in lines:
-            print(line)
-        print("SELF-TEST PASSED" if ok else "SELF-TEST FAILED")
+        report = "\n".join(
+            [describe(), *lines, "SELF-TEST PASSED" if ok else "SELF-TEST FAILED"]
+        )
+        print(report)
+        if getattr(sys, "frozen", False):
+            # The windowed exe shows nothing in a console; leave the result
+            # where the checklist can find it. Best effort only — CI and the
+            # updater read the exit code, not this file.
+            try:
+                _output_path("AutoFace-selftest-results.txt").write_text(
+                    report + "\n", encoding="utf-8"
+                )
+            except OSError:
+                pass
         return 0 if ok else 1
 
     if args.probe:
@@ -62,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
 
         names = PROBE_NAMES if args.probe == "all" else (args.probe,)
         report = run_probes(names)
-        destination = _probe_output_path()
+        destination = _output_path("AutoFace-probe-results.txt")
         try:
             destination.write_text(report, encoding="utf-8")
             print(f"Probe results written to {destination}")

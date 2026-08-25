@@ -57,10 +57,17 @@ def test_table_lookup_on_the_sixteenth_grid():
     assert TABLE.label_for(4) is None
 
 
-def test_table_ignores_malformed_keys():
-    table = ThicknessTable({"not-a-number": "999", "0.125": "125"})
+def test_table_ignores_malformed_keys_but_records_them():
+    table = ThicknessTable({"not-a-number": "999", "0.125": "125", "1/8": "x"})
     assert len(table) == 1
     assert table.label_for(2) == "125"
+    # Recorded so the UI can tell the user about the config typo instead of
+    # producing mystery "invalid thickness" skips.
+    assert sorted(table.ignored) == ["1/8", "not-a-number"]
+
+
+def test_table_with_no_malformed_keys_records_nothing():
+    assert ThicknessTable({"0.125": "125"}).ignored == []
 
 
 def test_agreeing_sources_use_the_model():

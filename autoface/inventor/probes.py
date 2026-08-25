@@ -269,10 +269,13 @@ def probe_neversave(app) -> list[str]:
     document, opened = com.with_busy_retry(
         lambda: _find_document_for_probe(app, row.model_path)
     )
+    created = False
     try:
         sheet_metal = document.ComponentDefinition
-        lines.append(f"  Dirty before: {_dirty_of(document)}")
+        dirty_before = _dirty_of(document)
+        lines.append(f"  Dirty before: {dirty_before}")
         sheet_metal.Unfold()
+        created = True
         try:
             sheet_metal.FlatPattern.ExitEdit()
         except Exception:  # noqa: BLE001
@@ -281,20 +284,40 @@ def probe_neversave(app) -> list[str]:
 
         target = _temp_dir() / (model.stem + "-neversave.dwg")
         target.unlink(missing_ok=True)
-        sheet_metal.DataIO.WriteDataToFile(config.dwg_format, str(target))
-        lines.append(
-            f"  exported {target.stat().st_size if target.exists() else 0} bytes"
-        )
-
-        sheet_metal.FlatPattern.Delete()
-        lines.append("  deleted the created flat pattern")
         try:
-            document.Dirty = False
-            lines.append("  cleared the Dirty flag")
-        except Exception as exc:  # noqa: BLE001
-            lines.append(f"  could not clear Dirty ({com.error_text(exc)})")
-        lines.append(f"  Dirty after: {_dirty_of(document)}")
+            sheet_metal.DataIO.WriteDataToFile(config.dwg_format, str(target))
+            lines.append(
+                f"  exported {target.stat().st_size if target.exists() else 0} bytes"
+            )
+        except Exception as exc:  # noqa: BLE001 - report, but still clean up
+            lines.append(f"  export FAILED ({com.error_text(exc)})")
     finally:
+        # The created flat pattern is deleted on every path — a probe that
+        # leaked it into the session would violate the very contract it tests.
+        if created:
+            try:
+                sheet_metal.FlatPattern.Delete()
+                lines.append("  deleted the created flat pattern")
+                if dirty_before == "False":
+                    try:
+                        document.Dirty = False
+                        lines.append("  cleared the Dirty flag")
+                    except Exception as exc:  # noqa: BLE001
+                        lines.append(
+                            f"  could not clear Dirty ({com.error_text(exc)})"
+                        )
+                else:
+                    lines.append(
+                        "  Dirty left as found (the part was already dirty "
+                        "or unreadable before the probe)"
+                    )
+            except Exception as exc:  # noqa: BLE001
+                lines.append(
+                    "  COULD NOT DELETE the created flat pattern "
+                    f"({com.error_text(exc)}) — close this part in Inventor "
+                    "WITHOUT saving"
+                )
+        lines.append(f"  Dirty after: {_dirty_of(document)}")
         _close_probe_document(document, opened)
 
     after = _sha256(model)

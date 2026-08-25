@@ -34,7 +34,9 @@ def scan_session(app) -> list[ScannedDrawing]:
             # drawings; the spec's queue is .idw only.
             if not path.lower().endswith(".idw"):
                 continue
-        except Exception:  # noqa: BLE001 - an unreadable document is not queue
+        except Exception as exc:  # noqa: BLE001 - an unreadable doc is not queue
+            if com.is_busy_error(exc):
+                raise  # surfaces to with_busy_retry instead of dropping a doc
             continue
         drawings.append(scan_drawing(document))
     return drawings
@@ -59,6 +61,8 @@ def scan_drawing(document) -> ScannedDrawing:
                 if note:
                     notes.append(note)
     except Exception as exc:  # noqa: BLE001 - a broken drawing must not abort
+        if com.is_busy_error(exc):
+            raise  # retried whole by with_busy_retry, not half-scanned
         notes.append(f"could not read parts lists: {com.error_text(exc)}")
 
     if lists_found == 0 and not notes:
@@ -78,42 +82,53 @@ class ColumnMap:
 def find_columns(parts_list) -> ColumnMap:
     """Locate ITEM / PART NUMBER / DESCRIPTION.
 
-    Primary identification is PropertyType (+ GetFilePropertyId for the two
-    iProperty columns) because column titles are user-editable and localized;
-    the title match is the fallback for styles where the id lookup fails.
+    Two passes. The first identifies columns authoritatively by PropertyType
+    (+ GetFilePropertyId for the two iProperty columns); the second fills any
+    still-unassigned slot by title. Titles are user-editable and localized,
+    so a title match must never pre-empt an authoritative match — running the
+    fallback interleaved would let an earlier look-alike column steal the
+    slot from the real one further right.
     """
     columns = parts_list.PartsListColumns
+    count = int(columns.Count)
     result = ColumnMap()
-    for index in range(1, int(columns.Count) + 1):
+
+    for index in range(1, count + 1):
         column = columns.Item(index)
-        property_type = None
         try:
             property_type = int(column.PropertyType)
-        except Exception:  # noqa: BLE001 - fall through to the title match
-            pass
-
+        except Exception:  # noqa: BLE001 - column left to the title pass
+            continue
         if property_type == com.kItemPartsListProperty and result.item is None:
             result.item = index
-            continue
-        if property_type == com.kFileProperty:
+        elif property_type == com.kFileProperty:
             try:
                 # Two [out] parameters; late-bound pywin32 returns them as a
                 # tuple: (property set id, property id).
                 set_id, property_id = column.GetFilePropertyId()
-                if str(set_id).upper() == com.DESIGN_TRACKING_PROPERTIES:
-                    if property_id == com.PROPERTY_ID_PART_NUMBER:
-                        result.part_number = result.part_number or index
-                        continue
-                    if property_id == com.PROPERTY_ID_DESCRIPTION:
-                        result.description = result.description or index
-                        continue
-            except Exception:  # noqa: BLE001 - fall through to the title match
-                pass
+            except Exception:  # noqa: BLE001 - column left to the title pass
+                continue
+            if str(set_id).upper() != com.DESIGN_TRACKING_PROPERTIES:
+                continue
+            if (
+                property_id == com.PROPERTY_ID_PART_NUMBER
+                and result.part_number is None
+            ):
+                result.part_number = index
+            elif (
+                property_id == com.PROPERTY_ID_DESCRIPTION
+                and result.description is None
+            ):
+                result.description = index
 
+    claimed = {result.item, result.part_number, result.description}
+    for index in range(1, count + 1):
+        if index in claimed:
+            continue
         try:
-            title = str(column.Title or "").strip().upper()
+            title = str(columns.Item(index).Title or "").strip().upper()
         except Exception:  # noqa: BLE001
-            title = ""
+            continue
         if title == "ITEM" and result.item is None:
             result.item = index
         elif title == "PART NUMBER" and result.part_number is None:
@@ -216,6 +231,8 @@ def resolve_row(row):
             note = f"could not read sheet metal data: {com.error_text(exc)}"
         return ModelKind.SHEET_METAL, model_path, thickness_cm, has_flat_pattern, note
     except Exception as exc:  # noqa: BLE001 - an unresolvable row is a flag
+        if com.is_busy_error(exc):
+            raise  # a busy Inventor must retry, not misclassify the row
         return (
             ModelKind.NO_MODEL,
             "",
