@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autoface"
+dynamic = ["version"]
+description = "Batch flat-pattern DWG exporter for Autodesk Inventor drawings"
+requires-python = ">=3.10"
+dependencies = ["pywin32>=306; sys_platform == 'win32'"]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.5"]
+
+[project.scripts]
+autoface = "autoface.cli:main"
+
+[project.gui-scripts]
+autoface-gui = "autoface.gui.app:main"
+
+[tool.setuptools]
+packages = ["autoface", "autoface.core", "autoface.gui", "autoface.inventor", "autoface.updater"]
+
+[tool.setuptools.dynamic]
+version = { file = "VERSION" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

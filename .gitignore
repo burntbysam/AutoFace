@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# PyInstaller work and output directories
+build/
+dist/
+
+# Written by CI immediately before the build
+build_info.json
+
+# Probe output written next to a source checkout during testing
+AutoFace-probe-results.txt
