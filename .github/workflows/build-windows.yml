@@ -1,0 +1,162 @@
+name: Build Windows executable
+
+# Produces a single self-contained AutoFace.exe on a real Windows runner.
+# PyInstaller cannot cross-compile, so this is the only build that has actually
+# run on the platform the shop uses.
+#
+# It builds on every push to a working branch, not only on tags: waiting for a
+# tag meant no executable ever got published.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, "claude/**"]
+    paths:
+      - "autoface/**"
+      - "packaging/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - "VERSION"
+      - ".github/workflows/build-windows.yml"
+
+# Needed to publish the .exe as a release asset.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install AutoFace and build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run the test suite
+        # The Inventor COM layer is exercised through fakes; nothing here needs
+        # a running Inventor. The self-test below is what gates the built exe.
+        run: python -m pytest -q
+
+      - name: Stamp the build
+        id: stamp
+        # build_id changes on every build, so the updater still recognises a
+        # rebuild of the same version as newer.
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $short = "${{ github.sha }}".Substring(0,7)
+          $buildId = "${{ github.run_number }}.$short"
+          $info = @{ version = $version; build_id = $buildId; commit = "${{ github.sha }}" }
+          $info | ConvertTo-Json | Set-Content build_info.json -Encoding utf8
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "build_id=$buildId" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Get-Content build_info.json
+
+      - name: Build AutoFace.exe
+        run: pyinstaller packaging/autoface.spec --noconfirm --distpath dist --workpath build
+
+      - name: Self-test the built executable
+        # The build is not trusted until it replays the spec's worked examples
+        # (naming, thickness table, collision rule) inside the frozen bundle.
+        #
+        # AutoFace.exe is a GUI-subsystem binary, so PowerShell does NOT wait
+        # for it and $LASTEXITCODE would be meaningless. Start-Process -Wait is
+        # the only way to run it synchronously and read its real exit code.
+        run: |
+          $out = New-TemporaryFile
+          $err = New-TemporaryFile
+          $p = Start-Process -FilePath ".\dist\AutoFace.exe" `
+                 -ArgumentList "--selftest" `
+                 -Wait -PassThru -NoNewWindow `
+                 -RedirectStandardOutput $out -RedirectStandardError $err
+          Get-Content $out | Write-Host
+          $e = Get-Content $err -Raw
+          if ($e) { Write-Host "STDERR:`n$e" }
+          Remove-Item $out, $err -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "Self-test failed (exit $($p.ExitCode))" }
+
+      - name: Upload build artifact (zipped, for CI history)
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoFace-windows
+          path: dist/AutoFace.exe
+          retention-days: 90
+
+      - name: Record size and hash, and write the update manifest
+        id: meta
+        env:
+          # Passed as an environment variable, NOT interpolated into the script.
+          # A commit message is arbitrary text: inlining it would put its quotes
+          # and newlines into the PowerShell source and let any commit message
+          # inject script.
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          $f = Get-Item dist\AutoFace.exe
+          $mb = [math]::Round($f.Length / 1MB, 1)
+          $sha = (Get-FileHash dist\AutoFace.exe -Algorithm SHA256).Hash.ToLower()
+          "size_mb=$mb" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "sha256=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+          # latest.json is what installed copies poll to discover a new build.
+          # It ships as a second asset; users still download only the exe.
+          $notes = ""
+          if ($env:HEAD_COMMIT_MESSAGE) {
+            $notes = ($env:HEAD_COMMIT_MESSAGE -split "`n")[0].Trim()
+          }
+          $manifest = @{
+            version  = "${{ steps.stamp.outputs.version }}"
+            build_id = "${{ steps.stamp.outputs.build_id }}"
+            sha256   = $sha
+            size     = $f.Length
+            url      = "https://github.com/${{ github.repository }}/releases/download/windows-latest-build/AutoFace.exe"
+            notes    = $notes
+          }
+          $manifest | ConvertTo-Json | Set-Content dist\latest.json -Encoding utf8
+          Get-Content dist\latest.json
+
+      # Publish at a stable tag so the download link never changes.
+      - name: Publish AutoFace.exe as a single-file release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-latest-build
+          name: AutoFace for Windows (latest build)
+          # NOT a prerelease: GitHub hides prereleases from /releases/latest/ and
+          # from the repo's headline release, which would 404 the download link.
+          prerelease: false
+          make_latest: "true"
+          files: |
+            dist/AutoFace.exe
+            dist/latest.json
+          body: |
+            **AutoFace for Windows — one file, nothing else needed.**
+
+            Download `AutoFace.exe` below and run it. There is nothing to
+            install: Python, the window toolkit and the Inventor COM bridge are
+            all inside the file. No admin rights. Autodesk Inventor must be
+            installed and running with your drawings open.
+
+            Pick an output folder, press **Scan open drawings**, review the
+            preview, then press **Export flat patterns**.
+
+            - Version: ${{ steps.stamp.outputs.version }} (build ${{ steps.stamp.outputs.build_id }})
+            - Size: ${{ steps.meta.outputs.size_mb }} MB
+            - SHA256: `${{ steps.meta.outputs.sha256 }}`
+            - Built from commit ${{ github.sha }}
+
+            Installed copies check for a newer build on start. An update is only
+            accepted after it matches this checksum.
+
+            Windows will show "Windows protected your PC" the first time (the
+            file is not code-signed) — click **More info** → **Run anyway**.
+
+            Verify the build at any time by running:
+            `AutoFace.exe --selftest`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
