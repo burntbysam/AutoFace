@@ -31,22 +31,21 @@ Complete and tested (217 pytest cases + `--selftest`):
 
 ## In flight at last save
 
-1. Verification workflow `wf_0afc30e5-0f1` (6 spec reviewers + adversarial
-   verification of findings). If its results were lost: re-run the script at
-   `.../workflows/scripts/autoface-verify-wf_0afc30e5-0f1.js` or simply
-   re-review against the spec emphasis areas (never-save, as-printed item
-   numbers, thickness table, collision rule). Confirmed findings must be
-   fixed and pushed.
-2. GitHub Actions run #1 (`Build Windows executable`) on this branch —
-   verify it went green and published `AutoFace.exe` + `latest.json` to the
-   `windows-latest-build` release; if red, fix from the job logs.
+1. DONE — the verification pass ran (6 reviewers, adversarial verification);
+   all confirmed findings were fixed in commit 504d073 (dirty-flag safety,
+   probe leak, close guard, two-pass column mapping, busy re-raise, summary
+   count consistency, config diagnostics, selftest results file).
+2. CI run #1 succeeded and published AutoFace.exe (build 1.6f3824e, 50.5 MB)
+   + latest.json to the windows-latest-build release. CI run #2
+   (id 32898400803, the verification fixes) was queued; a send_later
+   check-in (trig_015DDEe2dMqXjgwoS9qMrzTt, ~21:11Z) confirms it went green
+   and republished as build 2.504d073 — if it was red, fix from job logs.
 
 ## Then remaining
 
-- Relay to the user: architecture summary, the probe/checklist gate
-  (TESTING.md) they must run against a real drawing (they run Inventor
-  Professional 2025.3), and the download link once CI publishes.
-- Open questions for the user: none blocking; probes replace assumptions.
+- Only the user-side gate: they run --probe all + TESTING.md against a real
+  drawing on their Inventor Professional 2025.3 and paste
+  AutoFace-probe-results.txt back if anything looks off.
 
 ## Session preferences the user stated
 
