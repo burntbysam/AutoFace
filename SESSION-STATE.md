@@ -51,5 +51,6 @@ Complete and tested (217 pytest cases + `--selftest`):
 ## Session preferences the user stated
 
 - Failsafe session state to the repo when nearing token limits (this file).
-- Prefer lighter models (Sonnet/Haiku) for checking/mechanical subagents;
-  Fable-tier only where deep reasoning is load-bearing.
+- Subagents default to Opus (Sonnet/Haiku for light mechanical sweeps);
+  Fable-tier only where it is actually necessary — it burns tokens fast and
+  is overkill for checking agents.
