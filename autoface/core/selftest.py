@@ -8,6 +8,8 @@ checks the exact paths the spec calls out.
 
 from __future__ import annotations
 
+import os
+
 from .models import Classification, ModelKind, ScannedDrawing, ScannedRow
 from .naming import parse_drawing_name
 from .pipeline import build_plan
@@ -15,7 +17,7 @@ from .thickness import ThicknessTable, parse_description_thickness
 
 _TABLE = {"0.125": "125", "0.1875": "1875"}
 
-_EXISTING = {"C:\\out\\RUN 11\\125\\8640-1101-9.dwg"}
+_EXISTING = {os.path.join("C:\\out", "RUN 11", "125", "8640-1101-9.dwg")}
 
 
 def _sheet(item, thickness_cm, description, path="C:\\models\\part.ipt", **kw):

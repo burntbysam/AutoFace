@@ -119,8 +119,13 @@ def build_plan(
                 continue
 
             relative = relative_target(name, thickness_label, item)
+            # The relative form is always rendered Windows-style (it is what
+            # the preview shows); the absolute path is native so the export
+            # can create and check it directly.
             absolute = (
-                str(PureWindowsPath(output_root) / relative) if output_root else ""
+                os.path.join(output_root, *relative.split("\\"))
+                if output_root
+                else ""
             )
 
             if absolute and path_exists(absolute):

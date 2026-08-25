@@ -1,5 +1,7 @@
 """The planner: classification, target paths, collisions, flags."""
 
+import os
+
 from autoface.core.models import (
     Classification,
     ModelKind,
@@ -41,7 +43,10 @@ def test_export_row_gets_the_spec_target():
     row = plan.rows[0]
     assert row.classification is Classification.EXPORT
     assert row.target_relative == "RUN 11\\1875\\8640-1101-1.dwg"
-    assert row.target_path == "C:\\out\\RUN 11\\1875\\8640-1101-1.dwg"
+    # The absolute path is native to whatever OS runs the export.
+    assert row.target_path == os.path.join(
+        "C:\\out", "RUN 11", "1875", "8640-1101-1.dwg"
+    )
 
 
 def test_each_model_kind_maps_to_its_skip():
@@ -74,7 +79,7 @@ def test_description_wins_and_is_flagged():
 
 
 def test_collision_with_disk_is_skipped_never_overwritten():
-    target = "C:\\out\\RUN 11\\125\\8640-1101-5.dwg"
+    target = os.path.join("C:\\out", "RUN 11", "125", "8640-1101-5.dwg")
     plan = plan_of([sheet_row("5")], exists=lambda p: p == target)
     row = plan.rows[0]
     assert row.classification is Classification.SKIP_NAME_COLLISION
