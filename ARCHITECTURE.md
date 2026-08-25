@@ -6,6 +6,10 @@ follows this plan; anything the research could not verify without a live
 Inventor session is listed under "Probes" and must be confirmed against a real
 drawing before a batch run is trusted.
 
+Reference target: the user runs **Autodesk Inventor Professional 2025
+(2025.3, Build 356, 64-bit)**. Everything below was researched for Inventor
+2020–2026 and probes verify against the live 2025.3 session.
+
 ## Decision: external app over iLogic
 
 AutoFace is an **external Windows app** that attaches to the running Inventor
@@ -28,8 +32,10 @@ Reasons, on the merits:
   run (restored after).
 - iLogic would add real costs: rule files to deploy beside the exe (breaking
   the single-file requirement), a version-sensitive invocation boundary
-  (Inventor 2025 broke early-bound external iLogic calls), and a poorer error
-  channel (`RunExternalRule` returns only an integer status).
+  (Inventor 2025 — the user's release — moved to .NET 8 and broke early-bound
+  external iLogic calls), and a poorer error channel (`RunExternalRule`
+  returns only an integer status). Late-bound external COM is unaffected by
+  the 2025 .NET 8 transition.
 
 ## Stack
 
