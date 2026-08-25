@@ -35,11 +35,9 @@ Complete and tested (217 pytest cases + `--selftest`):
    all confirmed findings were fixed in commit 504d073 (dirty-flag safety,
    probe leak, close guard, two-pass column mapping, busy re-raise, summary
    count consistency, config diagnostics, selftest results file).
-2. CI run #1 succeeded and published AutoFace.exe (build 1.6f3824e, 50.5 MB)
-   + latest.json to the windows-latest-build release. CI run #2
-   (id 32898400803, the verification fixes) was queued; a send_later
-   check-in (trig_015DDEe2dMqXjgwoS9qMrzTt, ~21:11Z) confirms it went green
-   and republished as build 2.504d073 — if it was red, fix from job logs.
+2. DONE — CI runs #1 and #2 both succeeded; the windows-latest-build
+   release now carries AutoFace.exe build 2.504d073 (the verification-fix
+   build, sha256 833e1509…) + latest.json. Nothing is in flight.
 
 ## Then remaining
 
