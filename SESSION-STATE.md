@@ -35,11 +35,12 @@ Complete and tested (217 pytest cases + `--selftest`):
    all confirmed findings were fixed in commit 504d073 (dirty-flag safety,
    probe leak, close guard, two-pass column mapping, busy re-raise, summary
    count consistency, config diagnostics, selftest results file).
-2. DONE — CI runs #1–#4 all succeeded. The windows-latest-build release
-   carries AutoFace.exe v0.1.2 (build 4.4172502): profile-only DWG default
-   (bend/arc-center layers suppressed, legacy configs auto-upgraded),
-   silent skips for non-sheet rows whose description never claimed sheet,
-   and the quiet troubleshooting log in %USERPROFILE%\AutoFace Logs.
+2. DONE — CI runs #1–#5 all succeeded. The windows-latest-build release
+   carries AutoFace.exe v0.1.3 (build 5.ef88603): cut-profile-only DWGs
+   (bend, arc-center AND tangent/bend-extent layers suppressed; legacy
+   configs auto-upgrade), silent skips generalized to every skip kind
+   keyed off the BOM description (collisions and bad items always loud),
+   and the troubleshooting log records the full pick list per scan.
    Nothing is in flight.
 
 ## Then remaining
