@@ -47,6 +47,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.selftest or args.probe:
+        from .runlog import logger, setup as setup_runlog
+
+        setup_runlog(f"{describe()} — CLI {'selftest' if args.selftest else 'probe'}")
+
     if args.selftest:
         from .core.selftest import run_selftest
 
@@ -55,6 +60,7 @@ def main(argv: list[str] | None = None) -> int:
             [describe(), *lines, "SELF-TEST PASSED" if ok else "SELF-TEST FAILED"]
         )
         print(report)
+        logger.info("selftest %s", "passed" if ok else "FAILED")
         if getattr(sys, "frozen", False):
             # The windowed exe shows nothing in a console; leave the result
             # where the checklist can find it. Best effort only — CI and the
@@ -72,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
 
         names = PROBE_NAMES if args.probe == "all" else (args.probe,)
         report = run_probes(names)
+        logger.info("probe run (%s):\n%s", ", ".join(names), report)
         destination = _output_path("AutoFace-probe-results.txt")
         try:
             destination.write_text(report, encoding="utf-8")

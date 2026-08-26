@@ -231,6 +231,10 @@ class TestExportFlow:
     def test_export_writes_files_and_shows_the_summary(
         self, qapp, window, tmp_path, monkeypatch
     ):
+        from autoface import runlog
+
+        runlog.teardown()
+        log_path = runlog.setup("gui test", directory=tmp_path / "AutoFace Logs")
         out_root = tmp_path / "out"
         window.test_config.output_root = str(out_root)
 
@@ -281,6 +285,14 @@ class TestExportFlow:
             lambda: window.preview.item(0, 4) is not None
             and "collision" in window.preview.item(0, 4).text(),
         )
+
+        # The quiet troubleshooting log recorded the run.
+        runlog.teardown()
+        log_text = log_path.read_text(encoding="utf-8")
+        assert "export started: 1 row(s)" in log_text
+        assert "row: 8640-01101-I item 1" in log_text
+        assert "run summary:" in log_text
+        assert "Exported: 1" in log_text
 
     def test_export_failure_is_reported_per_row_not_fatal(
         self, qapp, window, tmp_path, monkeypatch

@@ -119,6 +119,16 @@ arguments:
   live session and writes `AutoFace-probe-results.txt` next to the exe.
   Run these once on first install (see [TESTING.md](TESTING.md)).
 
+## Troubleshooting log
+
+Every session quietly appends to a daily log in `%USERPROFILE%\AutoFace Logs`
+(e.g. `AutoFace Logs\AutoFace-2026-08-26.log`): version and config at launch,
+scan results and flags, one line per exported/skipped/failed row with the
+error text, the full end-of-run summary, and update events. When something
+looks wrong, send that day's file. Logging is best-effort (a machine where the
+folder can't be written just runs without it) and files older than 60 days are
+cleaned up automatically.
+
 ## Known limitations
 
 - **Sub-assemblies are not descended.** Rows backed by an assembly are

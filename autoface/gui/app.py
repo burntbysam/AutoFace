@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from .. import __version__
 from ..config import Config, load_config, save_config
+from ..runlog import logger
 from ..core.models import Plan, RowOutcome, RunResult, ScannedDrawing
 from ..core.pipeline import build_plan
 from ..core.summary import flag_lines, summarize_run, total_skipped
@@ -222,6 +223,12 @@ class MainWindow(QMainWindow):
         # An update leaves the previous build beside the new one; it cannot
         # be deleted while it is still running, so it is cleared on launch.
         installer.cleanup_backups()
+        logger.info(
+            "config: output_root=%r, thickness_table=%s, dwg_format=%r",
+            self._config.output_root,
+            self._config.thickness_table,
+            self._config.dwg_format,
+        )
 
         self._build_menu()
         self._build_body()
@@ -299,6 +306,7 @@ class MainWindow(QMainWindow):
             return
         self._config.output_root = str(Path(chosen))
         save_config(self._config)  # persisted for the next run
+        logger.info("output folder set to %r", self._config.output_root)
         self.folder_edit.setText(self._config.output_root)
         if self._scanned is not None:
             self._rebuild_plan()  # collision checks depend on the root
@@ -341,6 +349,7 @@ class MainWindow(QMainWindow):
         self._update_ready_state()
 
     def _on_scan_failed(self, message: str) -> None:
+        logger.warning("scan failed: %s", message)
         self.statusBar().showMessage("Scan failed")
         self._append(message)
         QMessageBox.information(self, "Cannot scan", message)
@@ -348,6 +357,7 @@ class MainWindow(QMainWindow):
     def _on_scanned(self, drawings: list[ScannedDrawing]) -> None:
         self._scanned = drawings
         if not drawings:
+            logger.info("scan: no open .idw drawings")
             self._plan = None
             self.preview.show_plan(Plan())
             message = (
@@ -388,6 +398,9 @@ class MainWindow(QMainWindow):
             if silent:
                 line += f", {silent} routine non-sheet row(s)"
             self._append(line + ".")
+            logger.info("%s", line)
+            for flagged in flag_lines(plan):
+                logger.info("preview flag: %s", flagged)
             if table.ignored:
                 self._append(
                     "Config problem: ignored malformed thickness table "
@@ -430,10 +443,15 @@ class MainWindow(QMainWindow):
 
         def on_row(outcome: RowOutcome) -> None:
             self._append(outcome.line)
+            if outcome.status == "failed":
+                logger.error("row failed: %s", outcome.line)
+            else:
+                logger.info("row: %s", outcome.line)
 
         def on_failed(message: str) -> None:
             progress.close()
             self._clear_export_thread()
+            logger.error("export run failed: %s", message)
             self.statusBar().showMessage("Export failed")
             QMessageBox.warning(self, "Export failed", message)
 
@@ -448,6 +466,14 @@ class MainWindow(QMainWindow):
                 f"Done — exported {result.exported}, skipped {skipped}, "
                 f"failed {result.failed}"
             )
+            if self._plan is not None:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+                logger.info(
+                    "run summary:\n%s",
+                    summarize_run(
+                        self._plan, result, self._config.output_root, timestamp
+                    ),
+                )
             self._show_summary(result)
             # The preview is now stale: exported files exist on disk, so a
             # re-plan shows them as collisions rather than pending work.
@@ -463,6 +489,9 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Exporting…")
         self._append("")
         self._append(f"Export started: {total} row(s).")
+        logger.info(
+            "export started: %d row(s) into %r", total, self._config.output_root
+        )
         self._export_thread = thread
         self._update_ready_state()
         thread.start()
@@ -536,6 +565,14 @@ class MainWindow(QMainWindow):
             thread.deleteLater()
 
     def _on_update_checked(self, info: UpdateInfo | None, interactive: bool) -> None:
+        if info is not None and info.available:
+            logger.info(
+                "update available: %s build %s (running %s build %s)",
+                info.latest_version,
+                info.latest_build_id,
+                info.current_version,
+                info.current_build_id,
+            )
         if info is None:
             if interactive:
                 QMessageBox.information(
@@ -617,13 +654,16 @@ class MainWindow(QMainWindow):
             progress.close()
             self._install_thread = None
             if message:  # empty means the user cancelled
+                logger.error("update not installed: %s", message)
                 QMessageBox.warning(self, "Update not installed", message)
             else:
+                logger.info("update cancelled by the user")
                 self.statusBar().showMessage("Update cancelled", 4000)
 
         def on_succeeded(path: str) -> None:
             progress.close()
             self._install_thread = None
+            logger.info("update installed: %s -> %s", info.latest_version, path)
             answer = QMessageBox.question(
                 self,
                 "Update installed",
@@ -760,13 +800,19 @@ class MainWindow(QMainWindow):
 
 
 def main(argv: list[str] | None = None) -> int:
+    from ..runlog import setup as setup_runlog
+    from ..version import describe
+
+    setup_runlog(f"{describe()} — GUI session")
     QGuiApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeMenuBar, False)
     app = QApplication(argv if argv is not None else sys.argv)
     app.setApplicationName("AutoFace")
     app.setApplicationVersion(__version__)
     window = MainWindow()
     window.show()
-    return app.exec()
+    code = app.exec()
+    logger.info("session closed (exit %d)", code)
+    return code
 
 
 if __name__ == "__main__":  # pragma: no cover
