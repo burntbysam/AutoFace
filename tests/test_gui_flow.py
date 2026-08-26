@@ -286,9 +286,10 @@ class TestExportFlow:
             and "collision" in window.preview.item(0, 4).text(),
         )
 
-        # The quiet troubleshooting log recorded the run.
+        # The quiet troubleshooting log recorded the full pick list and the run.
         runlog.teardown()
         log_text = log_path.read_text(encoding="utf-8")
+        assert "found: 8640-01101-I item 1 (PN-1)" in log_text
         assert "export started: 1 row(s)" in log_text
         assert "row: 8640-01101-I item 1" in log_text
         assert "run summary:" in log_text

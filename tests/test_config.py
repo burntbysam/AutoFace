@@ -64,7 +64,19 @@ def test_legacy_acadversion_fallback_keeps_its_version_and_gains_the_layers(
     )
     upgraded = load_config(path).dwg_format
     assert "AcadVersion=2018" in upgraded
-    assert "InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS" in upgraded
+    assert "IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT" in upgraded
+
+
+def test_each_previous_default_upgrades_to_the_current_one(tmp_path):
+    previous_defaults = [
+        "FLAT PATTERN DWG",
+        "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS",
+    ]
+    for stored in previous_defaults:
+        path = tmp_path / "config.json"
+        path.write_text(json.dumps({"dwg_format": stored}), encoding="utf-8")
+        assert load_config(path).dwg_format == DEFAULT_DWG_FORMAT, stored
+    assert "IV_TANGENT;IV_ROLL_TANGENT" in DEFAULT_DWG_FORMAT
 
 
 def test_a_custom_dwg_format_is_left_alone(tmp_path):

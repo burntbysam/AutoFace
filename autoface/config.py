@@ -20,22 +20,28 @@ DEFAULT_THICKNESS_TABLE = {
     "0.1875": "1875",  # 3/16"
 }
 # Inventor's default flat-pattern DWG, minus the layers CAM does not want:
-# bend centerlines (IV_BEND, IV_BEND_DOWN) and the point markers at every
-# hole center (IV_ARC_CENTERS). If a given Inventor version rejects the
-# string (the --probe export check covers this), prepend "AcadVersion=2018&"
-# to the options.
-DEFAULT_DWG_FORMAT = (
-    "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS"
-)
+# bend centerlines (IV_BEND, IV_BEND_DOWN), the point markers at every hole
+# center (IV_ARC_CENTERS), and the bend-extent tangent lines flanking each
+# bend (IV_TANGENT; IV_ROLL_TANGENT is their rolled-part counterpart). If a
+# given Inventor version rejects the string (the --probe export check covers
+# this), prepend "AcadVersion=2018&" to the options.
+_HIDDEN_LAYERS = "IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT;IV_ROLL_TANGENT"
+DEFAULT_DWG_FORMAT = f"FLAT PATTERN DWG?InvisibleLayers={_HIDDEN_LAYERS}"
 
 # Format strings earlier releases wrote into config.json as their default.
 # A stored value matching one of these was never a user customization, so it
 # upgrades to the current default (keeping any AcadVersion the user needed).
 _LEGACY_DWG_FORMATS = {
     "FLAT PATTERN DWG": DEFAULT_DWG_FORMAT,
+    "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS": (
+        DEFAULT_DWG_FORMAT
+    ),
     "FLAT PATTERN DWG?AcadVersion=2018": (
-        "FLAT PATTERN DWG?AcadVersion=2018"
-        "&InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS"
+        f"FLAT PATTERN DWG?AcadVersion=2018&InvisibleLayers={_HIDDEN_LAYERS}"
+    ),
+    "FLAT PATTERN DWG?AcadVersion=2018"
+    "&InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS": (
+        f"FLAT PATTERN DWG?AcadVersion=2018&InvisibleLayers={_HIDDEN_LAYERS}"
     ),
 }
 

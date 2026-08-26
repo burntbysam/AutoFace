@@ -42,12 +42,21 @@ assembly's internal BOM):
 | Row resolves to | Result |
 |---|---|
 | Sheet metal part, valid thickness | **Export** (purchased or normal BOM structure — both export) |
-| Non-sheet-metal part | Skip: not sheet metal — silent in the end-of-run summary when the description never claimed sheet; counted and flagged when it did (that mismatch is an anomaly) |
+| Non-sheet-metal part | Skip: not sheet metal |
 | Sub-assembly | Skip: sub-assembly (future versions will descend) |
 | Virtual/custom row, no model file | Skip: no model |
 | Thickness not in the table | Skip: invalid thickness |
 | Target .dwg already exists | Skip: name collision (never overwritten) |
 | Drawing name doesn't parse | Skip: unparseable drawing name |
+
+Expected skips are silent: any skipped row whose BOM description never
+claimed to be sheet (no `SHEET` callout, no thickness like `.190`) — support
+assemblies, channel, hardware — still shows in the preview table and the
+troubleshooting log, but stays out of the end-of-run counts and flag list. A
+skip on a row whose description *does* say sheet stays counted and flagged
+(that mismatch is an anomaly worth hearing about), and name collisions and
+bad item numbers are always loud — those are DWGs that would have shipped
+and did not.
 
 Flat patterns: an existing flat pattern is used as-is. If a part has none,
 AutoFace creates one via the API, exports it, then **deletes it again and
@@ -76,7 +85,7 @@ flagged so you hear about it.
     "0.125": "125",
     "0.1875": "1875"
   },
-  "dwg_format": "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS"
+  "dwg_format": "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT;IV_ROLL_TANGENT"
 }
 ```
 
@@ -86,13 +95,14 @@ flagged so you hear about it.
   `"0.25": "250"` — no code change. If folder labels ever standardize to four
   digits, edit the values (`"0.125": "1250"` etc.).
 - **dwg_format** — the Inventor DataIO format string. The default exports the
-  flat pattern profile only: bend centerlines (`IV_BEND`, `IV_BEND_DOWN`) and
-  the point markers at hole centers (`IV_ARC_CENTERS`) are suppressed via
-  `InvisibleLayers`. To bring bend lines back, remove those entries; to hide
-  more (e.g. tangent lines), add `IV_TANGENT` to the list. If your Inventor
-  version rejects the string (`AutoFace.exe --probe export` tells you), add
-  `AcadVersion=2018&` in front of `InvisibleLayers`. Configs written by older
-  AutoFace versions with the old default are upgraded automatically.
+  cut profile only: bend centerlines (`IV_BEND`, `IV_BEND_DOWN`), hole-center
+  point markers (`IV_ARC_CENTERS`), and the bend-extent tangent lines
+  (`IV_TANGENT`, `IV_ROLL_TANGENT`) are all suppressed via `InvisibleLayers`.
+  To bring any of them back, remove that entry from the list. If your
+  Inventor version rejects the string (`AutoFace.exe --probe export` tells
+  you), add `AcadVersion=2018&` in front of `InvisibleLayers`. Configs
+  written by older AutoFace versions with a previous default are upgraded
+  automatically.
 
 ## Updates
 

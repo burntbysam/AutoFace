@@ -28,7 +28,13 @@ from PySide6.QtWidgets import (
 from .. import __version__
 from ..config import Config, load_config, save_config
 from ..runlog import logger
-from ..core.models import Plan, RowOutcome, RunResult, ScannedDrawing
+from ..core.models import (
+    Classification,
+    Plan,
+    RowOutcome,
+    RunResult,
+    ScannedDrawing,
+)
 from ..core.pipeline import build_plan
 from ..core.summary import flag_lines, summarize_run, total_skipped
 from ..core.thickness import ThicknessTable
@@ -399,6 +405,18 @@ class MainWindow(QMainWindow):
                 line += f", {silent} routine non-sheet row(s)"
             self._append(line + ".")
             logger.info("%s", line)
+            # The complete pick list, silent rows included: the log shows
+            # everything that was there to be picked from, then (during the
+            # run) what was actually exported.
+            for planned in plan.rows:
+                found = (
+                    f"found: {planned.drawing_label} item {planned.item} "
+                    f"({planned.part_number}) {planned.description or '-'} "
+                    f"-> {planned.classification.label}"
+                )
+                if planned.classification is Classification.EXPORT:
+                    found += f" -> {planned.target_relative}"
+                logger.info("%s", found)
             for flagged in flag_lines(plan):
                 logger.info("preview flag: %s", flagged)
             if table.ignored:

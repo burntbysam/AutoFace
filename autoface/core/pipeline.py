@@ -58,6 +58,15 @@ def build_plan(
 
         for scanned in drawing.rows:
             flags = [scanned.note] if scanned.note else []
+            # The BOM description is the shop's own word on what the row is.
+            # A skip on a row that never claimed to be sheet (assemblies,
+            # channel, hardware…) is entirely expected and stays out of the
+            # end-of-run summary; a skip on a row that DOES claim sheet is
+            # news. Rows with scan notes always stay loud.
+            expected_skip = (
+                not looks_like_sheet_description(scanned.description)
+                and not flags
+            )
             resolution = None
             if scanned.model_kind is ModelKind.SHEET_METAL:
                 resolution = resolve_thickness(
@@ -94,27 +103,25 @@ def build_plan(
                 )
 
             if name is None:
-                rows.append(row(Classification.SKIP_UNPARSEABLE_DRAWING))
+                # The drawing-level problem still surfaces through this
+                # drawing's sheet-claiming rows, which stay loud.
+                rows.append(
+                    row(Classification.SKIP_UNPARSEABLE_DRAWING, silent=expected_skip)
+                )
                 continue
             if scanned.model_kind is ModelKind.NO_MODEL:
-                rows.append(row(Classification.SKIP_NO_MODEL))
+                rows.append(row(Classification.SKIP_NO_MODEL, silent=expected_skip))
                 continue
             if scanned.model_kind is ModelKind.SUB_ASSEMBLY:
                 # Future versions descend into these; this is the one case to
                 # replace when they do.
-                rows.append(row(Classification.SKIP_SUB_ASSEMBLY))
+                rows.append(
+                    row(Classification.SKIP_SUB_ASSEMBLY, silent=expected_skip)
+                )
                 continue
             if scanned.model_kind is ModelKind.NOT_SHEET_METAL:
-                # Routine when the description never claimed sheet either:
-                # keep it out of the end-of-run summary. A description that
-                # says SHEET on a non-sheet model stays loud — that mismatch
-                # is exactly what the flag list is for.
-                expected = not looks_like_sheet_description(scanned.description)
                 rows.append(
-                    row(
-                        Classification.SKIP_NOT_SHEET_METAL,
-                        silent=expected and not flags,
-                    )
+                    row(Classification.SKIP_NOT_SHEET_METAL, silent=expected_skip)
                 )
                 continue
 
@@ -125,7 +132,12 @@ def build_plan(
                 else None
             )
             if thickness_label is None:
-                rows.append(row(Classification.SKIP_INVALID_THICKNESS))
+                # e.g. a channel or extrusion modeled as a sheet metal doc:
+                # its description says what it really is, so the silent rule
+                # applies here too.
+                rows.append(
+                    row(Classification.SKIP_INVALID_THICKNESS, silent=expected_skip)
+                )
                 continue
 
             item = clean_item(scanned.item)
