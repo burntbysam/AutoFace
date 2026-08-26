@@ -27,6 +27,9 @@ a sibling tool to AutoBOM: one exe, self-updating, same look.
 4. Review the preview table — one row per parts-list item, with the resolved
    thickness, the classification, and the exact target path. Nothing has been
    written yet; this is where a bad filename parse or thickness read shows up.
+   Click any column header to sort (click again to reverse) — item and part
+   numbers sort numerically, thickness by value. Sorting is display-only;
+   exports always run in drawing order.
 5. Press **Export flat patterns**. The end-of-run summary shows counts and a
    flag list, and offers to save the log as a .txt next to the exports.
 

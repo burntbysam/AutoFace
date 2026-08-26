@@ -153,6 +153,131 @@ class TestScanFlow:
         assert not window.export_button.isEnabled()
 
 
+class TestPreviewSorting:
+    def make_table(self, qapp, rows):
+        from autoface.core.models import Classification, Plan, PlanRow
+        from autoface.gui.widgets import PreviewTable
+
+        plan_rows = tuple(
+            PlanRow(
+                drawing_path=f"C:\\dwg\\{drawing}.idw",
+                drawing_label=drawing,
+                item=item,
+                part_number=part,
+                description="",
+                thickness_display=thickness,
+                classification=Classification.EXPORT,
+                target_relative=f"RUN 11\\125\\{drawing}-{item}.dwg",
+            )
+            for drawing, item, part, thickness in rows
+        )
+        table = PreviewTable()
+        table.show_plan(Plan(rows=plan_rows))
+        return table
+
+    def column(self, table, index):
+        return [table.item(row, index).text() for row in range(table.rowCount())]
+
+    def test_scan_order_until_the_user_sorts(self, qapp):
+        table = self.make_table(
+            qapp,
+            [
+                ("8640-01101-I", "2", "PN-B", '0.125" (1/8")'),
+                ("8640-01101-I", "1", "PN-A", '0.19" (3/16")'),
+            ],
+        )
+        try:
+            assert self.column(table, 1) == ["2", "1"]  # untouched
+        finally:
+            table.deleteLater()
+
+    def test_item_numbers_sort_numerically_not_lexically(self, qapp):
+        from PySide6.QtCore import Qt
+
+        table = self.make_table(
+            qapp,
+            [
+                ("D", "10", "PN", "—"),
+                ("D", "2", "PN", "—"),
+                ("D", "1A", "PN", "—"),
+                ("D", "1", "PN", "—"),
+            ],
+        )
+        try:
+            table.sortItems(1, Qt.SortOrder.AscendingOrder)
+            assert self.column(table, 1) == ["1", "1A", "2", "10"]
+            table.sortItems(1, Qt.SortOrder.DescendingOrder)
+            assert self.column(table, 1) == ["10", "2", "1A", "1"]
+        finally:
+            table.deleteLater()
+
+    def test_thickness_sorts_by_value_with_unknown_last(self, qapp):
+        from PySide6.QtCore import Qt
+
+        table = self.make_table(
+            qapp,
+            [
+                ("D", "1", "PN", '0.19" (3/16")'),
+                ("D", "2", "PN", "—"),
+                ("D", "3", "PN", '0.125" (1/8")'),
+            ],
+        )
+        try:
+            table.sortItems(3, Qt.SortOrder.AscendingOrder)
+            assert self.column(table, 3) == ['0.125" (1/8")', '0.19" (3/16")', "—"]
+        finally:
+            table.deleteLater()
+
+    def test_rows_travel_whole_when_sorted(self, qapp):
+        from PySide6.QtCore import Qt
+
+        table = self.make_table(
+            qapp,
+            [
+                ("D", "2", "PN-of-2", "—"),
+                ("D", "1", "PN-of-1", "—"),
+            ],
+        )
+        try:
+            table.sortItems(1, Qt.SortOrder.AscendingOrder)
+            assert self.column(table, 2) == ["PN-of-1", "PN-of-2"]
+        finally:
+            table.deleteLater()
+
+    def test_the_sort_survives_a_rescan(self, qapp):
+        from PySide6.QtCore import Qt
+        from autoface.core.models import Classification, Plan, PlanRow
+
+        table = self.make_table(
+            qapp,
+            [
+                ("D", "2", "PN", "—"),
+                ("D", "1", "PN", "—"),
+            ],
+        )
+        try:
+            table.sortItems(1, Qt.SortOrder.AscendingOrder)
+            refreshed = Plan(
+                rows=tuple(
+                    PlanRow(
+                        drawing_path="C:\\dwg\\D.idw",
+                        drawing_label="D",
+                        item=item,
+                        part_number="PN",
+                        description="",
+                        thickness_display="—",
+                        classification=Classification.EXPORT,
+                        target_relative=f"RUN 11\\125\\D-{item}.dwg",
+                    )
+                    for item in ("30", "4", "20")
+                )
+            )
+            table.show_plan(refreshed)
+            assert self.column(table, 1) == ["4", "20", "30"]
+        finally:
+            table.deleteLater()
+
+
 class TestSummaryDialog:
     def test_skipped_count_matches_the_saved_log(self, qapp):
         from autoface.core.models import RunResult
