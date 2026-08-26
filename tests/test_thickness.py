@@ -51,6 +51,17 @@ def test_description_parsing_variants():
     assert parse_description_thickness("PLATE,AL,1.25,10X10") is None
 
 
+def test_sheet_descriptions_are_recognized():
+    from autoface.core.thickness import looks_like_sheet_description
+
+    assert looks_like_sheet_description("SHEET,AL,SMOOTH,.190,60X133.13")
+    assert looks_like_sheet_description("sheet,al,.125")  # case-insensitive
+    assert looks_like_sheet_description("PLATE,AL,.190,10X10")  # thickness token
+    assert not looks_like_sheet_description("BRACKET, STEEL")
+    assert not looks_like_sheet_description("BUS BAR,CU,60X4")
+    assert not looks_like_sheet_description("")
+
+
 def test_table_lookup_on_the_sixteenth_grid():
     assert TABLE.label_for(2) == "125"
     assert TABLE.label_for(3) == "1875"

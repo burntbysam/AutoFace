@@ -79,6 +79,10 @@ class PlanRow:
     model_path: str = ""
     has_flat_pattern: bool | None = None
     flags: tuple[str, ...] = ()  # informational, e.g. the thickness cross-check
+    # Silent rows still show in the preview but stay out of the end-of-run
+    # skip count and flag list: a skip that is entirely expected (a BOM row
+    # whose description never claimed to be sheet) is noise, not news.
+    silent: bool = False
 
 
 @dataclass(frozen=True)

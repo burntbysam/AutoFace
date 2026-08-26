@@ -26,6 +26,8 @@ def flag_lines(plan: Plan, result: RunResult | None = None) -> list[str]:
     for row in plan.rows:
         if id(row) in reported:
             continue
+        if row.silent:
+            continue  # expected skips stay out of the flag list entirely
         if row.classification is Classification.EXPORT and not row.flags:
             continue
         prefix = f"{row.drawing_label} item {row.item or '?'}"
@@ -70,7 +72,9 @@ def summarize_run(
 
 
 def _preview_skips(plan: Plan) -> int:
-    """Rows the preview already ruled out; they never reach the export run."""
+    """Rows the preview ruled out, minus the silent ones nobody needs counted."""
     return sum(
-        1 for row in plan.rows if row.classification is not Classification.EXPORT
+        1
+        for row in plan.rows
+        if row.classification is not Classification.EXPORT and not row.silent
     )

@@ -42,7 +42,7 @@ assembly's internal BOM):
 | Row resolves to | Result |
 |---|---|
 | Sheet metal part, valid thickness | **Export** (purchased or normal BOM structure — both export) |
-| Non-sheet-metal part | Skip: not sheet metal |
+| Non-sheet-metal part | Skip: not sheet metal — silent in the end-of-run summary when the description never claimed sheet; counted and flagged when it did (that mismatch is an anomaly) |
 | Sub-assembly | Skip: sub-assembly (future versions will descend) |
 | Virtual/custom row, no model file | Skip: no model |
 | Thickness not in the table | Skip: invalid thickness |
@@ -76,7 +76,7 @@ flagged so you hear about it.
     "0.125": "125",
     "0.1875": "1875"
   },
-  "dwg_format": "FLAT PATTERN DWG"
+  "dwg_format": "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS"
 }
 ```
 
@@ -86,9 +86,13 @@ flagged so you hear about it.
   `"0.25": "250"` — no code change. If folder labels ever standardize to four
   digits, edit the values (`"0.125": "1250"` etc.).
 - **dwg_format** — the Inventor DataIO format string. The default exports the
-  flat pattern with Inventor's default DWG settings. If your Inventor version
-  rejects the bare string (`AutoFace.exe --probe export` tells you), use
-  `"FLAT PATTERN DWG?AcadVersion=2018"`.
+  flat pattern profile only: bend centerlines (`IV_BEND`, `IV_BEND_DOWN`) and
+  the point markers at hole centers (`IV_ARC_CENTERS`) are suppressed via
+  `InvisibleLayers`. To bring bend lines back, remove those entries; to hide
+  more (e.g. tangent lines), add `IV_TANGENT` to the list. If your Inventor
+  version rejects the string (`AutoFace.exe --probe export` tells you), add
+  `AcadVersion=2018&` in front of `InvisibleLayers`. Configs written by older
+  AutoFace versions with the old default are upgraded automatically.
 
 ## Updates
 
@@ -120,8 +124,8 @@ arguments:
 - **Sub-assemblies are not descended.** Rows backed by an assembly are
   skipped and flagged. The classifier is structured so descending is a
   one-case extension in a future version.
-- **Default DWG export settings only** — no layer, version, or geometry
-  customization beyond the single config format string.
+- **One DWG flavor** — the single config format string is the only export
+  customization; it ships with bend lines and hole-center markers suppressed.
 - **Two thicknesses ship in the table** (1/8" → `125`, 3/16" → `1875`).
   Anything else is skipped and flagged until added to the config.
 - Multi-body sheet metal parts use the document-level Thickness parameter;

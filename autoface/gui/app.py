@@ -374,15 +374,20 @@ class MainWindow(QMainWindow):
 
         total = len(plan.rows)
         exportable = len(plan.exportable)
+        silent = sum(1 for planned in plan.rows if planned.silent)
         drawings = len(self._scanned)
         if describe_in_log:
             # A fresh preview replaces the log; a post-run refresh must not
             # wipe the run's per-row record.
             self.log.clear()
-            self._append(
+            skips = total - exportable - silent
+            line = (
                 f"Scanned {drawings} drawing(s): {total} parts list row(s), "
-                f"{exportable} to export, {total - exportable} to skip."
+                f"{exportable} to export, {skips} to skip"
             )
+            if silent:
+                line += f", {silent} routine non-sheet row(s)"
+            self._append(line + ".")
             if table.ignored:
                 self._append(
                     "Config problem: ignored malformed thickness table "

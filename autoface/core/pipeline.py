@@ -19,7 +19,11 @@ from .models import (
     ScannedDrawing,
 )
 from .naming import clean_item, parse_drawing_name, relative_target
-from .thickness import ThicknessTable, resolve_thickness
+from .thickness import (
+    ThicknessTable,
+    looks_like_sheet_description,
+    resolve_thickness,
+)
 
 
 def _mismatch_flag(model_inches: float, description_inches: float) -> str:
@@ -71,6 +75,7 @@ def build_plan(
                 classification: Classification,
                 target_relative: str = "",
                 target_path: str = "",
+                silent: bool = False,
             ) -> PlanRow:
                 return PlanRow(
                     drawing_path=drawing.path,
@@ -85,6 +90,7 @@ def build_plan(
                     model_path=scanned.model_path,
                     has_flat_pattern=scanned.has_flat_pattern,
                     flags=tuple(flags),
+                    silent=silent,
                 )
 
             if name is None:
@@ -99,7 +105,17 @@ def build_plan(
                 rows.append(row(Classification.SKIP_SUB_ASSEMBLY))
                 continue
             if scanned.model_kind is ModelKind.NOT_SHEET_METAL:
-                rows.append(row(Classification.SKIP_NOT_SHEET_METAL))
+                # Routine when the description never claimed sheet either:
+                # keep it out of the end-of-run summary. A description that
+                # says SHEET on a non-sheet model stays loud — that mismatch
+                # is exactly what the flag list is for.
+                expected = not looks_like_sheet_description(scanned.description)
+                rows.append(
+                    row(
+                        Classification.SKIP_NOT_SHEET_METAL,
+                        silent=expected and not flags,
+                    )
+                )
                 continue
 
             # Sheet metal from here on.

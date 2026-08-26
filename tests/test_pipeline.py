@@ -65,6 +65,50 @@ def test_each_model_kind_maps_to_its_skip():
     ]
 
 
+def test_expected_non_sheet_rows_are_silent():
+    # The description never claimed sheet: the preview shows the skip, the
+    # end-of-run summary does not count it.
+    plan = plan_of([ScannedRow("2", "PN", "BRACKET", ModelKind.NOT_SHEET_METAL)])
+    assert plan.rows[0].silent is True
+
+
+def test_a_sheet_claiming_description_on_a_non_sheet_model_stays_loud():
+    plan = plan_of(
+        [
+            ScannedRow(
+                "2", "PN", "SHEET,AL,SMOOTH,.190,10X10", ModelKind.NOT_SHEET_METAL
+            )
+        ]
+    )
+    assert plan.rows[0].silent is False
+
+
+def test_a_non_sheet_row_with_a_scan_note_stays_loud():
+    plan = plan_of(
+        [
+            ScannedRow(
+                "2",
+                "PN",
+                "BRACKET",
+                ModelKind.NOT_SHEET_METAL,
+                note="thickness read failed",
+            )
+        ]
+    )
+    assert plan.rows[0].silent is False
+
+
+def test_other_skip_kinds_are_never_silent():
+    plan = plan_of(
+        [
+            ScannedRow("3", "PN", "SUB", ModelKind.SUB_ASSEMBLY),
+            ScannedRow("4", "PN", "VIRT", ModelKind.NO_MODEL),
+            sheet_row("5", 0.25, "SHEET,AL,.250,10X10"),  # invalid thickness
+        ]
+    )
+    assert all(row.silent is False for row in plan.rows)
+
+
 def test_invalid_thickness_is_skipped():
     plan = plan_of([sheet_row("1", 0.25, "SHEET,AL,SMOOTH,.250,10X10")])
     assert plan.rows[0].classification is Classification.SKIP_INVALID_THICKNESS

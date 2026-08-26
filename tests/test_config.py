@@ -46,6 +46,34 @@ def test_damaged_file_gives_defaults(tmp_path):
     assert load_config(path).output_root == ""
 
 
+def test_legacy_default_dwg_format_upgrades(tmp_path):
+    # Earlier releases wrote the bare string as their default; a config
+    # carrying it was never a customization and must pick up the new default.
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"dwg_format": "FLAT PATTERN DWG"}), encoding="utf-8")
+    assert load_config(path).dwg_format == DEFAULT_DWG_FORMAT
+
+
+def test_legacy_acadversion_fallback_keeps_its_version_and_gains_the_layers(
+    tmp_path,
+):
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps({"dwg_format": "FLAT PATTERN DWG?AcadVersion=2018"}),
+        encoding="utf-8",
+    )
+    upgraded = load_config(path).dwg_format
+    assert "AcadVersion=2018" in upgraded
+    assert "InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS" in upgraded
+
+
+def test_a_custom_dwg_format_is_left_alone(tmp_path):
+    path = tmp_path / "config.json"
+    custom = "FLAT PATTERN DWG?AcadVersion=2013&OuterProfileLayer=Burn"
+    path.write_text(json.dumps({"dwg_format": custom}), encoding="utf-8")
+    assert load_config(path).dwg_format == custom
+
+
 def test_empty_thickness_table_falls_back_to_defaults(tmp_path):
     path = tmp_path / "config.json"
     path.write_text(json.dumps({"thickness_table": {}}), encoding="utf-8")

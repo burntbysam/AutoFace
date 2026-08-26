@@ -41,6 +41,18 @@ def format_sixteenths(sixteenths: int) -> str:
     return f'{numerator}/{denominator}"'
 
 
+def looks_like_sheet_description(description: str) -> bool:
+    """Whether the BOM description claims the part is sheet stock.
+
+    Non-sheet rows (brackets, hardware, bus bar…) are routine in these BOMs
+    and their skips are noise; a description that DOES claim sheet (a SHEET
+    callout or a thickness token) on a part that turns out not to be sheet
+    metal is an anomaly worth flagging.
+    """
+    text = str(description).upper()
+    return "SHEET" in text or parse_description_thickness(description) is not None
+
+
 def parse_description_thickness(description: str) -> float | None:
     """The thickness called out in a BOM description string, in inches.
 

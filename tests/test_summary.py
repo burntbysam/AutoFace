@@ -30,7 +30,12 @@ def make_plan():
                 thickness_cm=0.125 * INCH,
                 has_flat_pattern=True,
             ),
-            ScannedRow("2", "PN-2", "BRACKET", ModelKind.NOT_SHEET_METAL),
+            # Claims sheet but is not one: the loud, flag-worthy skip.
+            ScannedRow(
+                "2", "PN-2", "SHEET,AL,.125,2X2", ModelKind.NOT_SHEET_METAL
+            ),
+            # A plain bracket: silent, expected.
+            ScannedRow("3", "PN-3", "BRACKET", ModelKind.NOT_SHEET_METAL),
         ),
         note="second sheet has no parts list",
     )
@@ -44,6 +49,17 @@ def test_flag_lines_cover_skips_and_notes():
     assert any("Skip: not sheet metal" in line for line in lines)
     # The clean export row does not appear.
     assert not any("item 1 " in line and "PN-1" in line for line in lines)
+
+
+def test_silent_rows_stay_out_of_the_flag_list_and_counts():
+    from autoface.core.summary import total_skipped
+
+    plan = make_plan()
+    lines = flag_lines(plan)
+    assert not any("PN-3" in line for line in lines)  # the bracket is silent
+    assert any("PN-2" in line for line in lines)  # the anomaly is not
+    result = RunResult()
+    assert total_skipped(plan, result) == 1  # only the loud skip counts
 
 
 def test_run_outcomes_replace_preview_lines_for_run_rows():

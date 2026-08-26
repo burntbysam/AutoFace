@@ -19,10 +19,25 @@ DEFAULT_THICKNESS_TABLE = {
     "0.125": "125",  # 1/8"
     "0.1875": "1875",  # 3/16"
 }
-# Bare = Inventor's default DWG export settings. If a given Inventor version
-# rejects the bare string (the --probe export check covers this), set
-# "FLAT PATTERN DWG?AcadVersion=2018" here instead.
-DEFAULT_DWG_FORMAT = "FLAT PATTERN DWG"
+# Inventor's default flat-pattern DWG, minus the layers CAM does not want:
+# bend centerlines (IV_BEND, IV_BEND_DOWN) and the point markers at every
+# hole center (IV_ARC_CENTERS). If a given Inventor version rejects the
+# string (the --probe export check covers this), prepend "AcadVersion=2018&"
+# to the options.
+DEFAULT_DWG_FORMAT = (
+    "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS"
+)
+
+# Format strings earlier releases wrote into config.json as their default.
+# A stored value matching one of these was never a user customization, so it
+# upgrades to the current default (keeping any AcadVersion the user needed).
+_LEGACY_DWG_FORMATS = {
+    "FLAT PATTERN DWG": DEFAULT_DWG_FORMAT,
+    "FLAT PATTERN DWG?AcadVersion=2018": (
+        "FLAT PATTERN DWG?AcadVersion=2018"
+        "&InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS"
+    ),
+}
 
 
 def config_dir() -> Path:
@@ -75,10 +90,12 @@ def load_config(path: Path | None = None) -> Config:
         for key, value in payload.items()
         if key not in ("output_root", "thickness_table", "dwg_format")
     }
+    dwg_format = str(payload.get("dwg_format") or DEFAULT_DWG_FORMAT)
+    dwg_format = _LEGACY_DWG_FORMATS.get(dwg_format, dwg_format)
     return Config(
         output_root=str(payload.get("output_root") or ""),
         thickness_table=table,
-        dwg_format=str(payload.get("dwg_format") or DEFAULT_DWG_FORMAT),
+        dwg_format=dwg_format,
         extras=extras,
     )
 

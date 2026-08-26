@@ -26,7 +26,8 @@ Setup: Inventor running, only the test drawing open, AutoFace.exe on disk.
         `SKIP` (every part already has a flat pattern), see step 5.
 - [ ] Open the DWG the export probe wrote (in your CAM tool or a DWG viewer):
       it is the flat pattern, correct outline, correct scale (1:1 in the
-      part's units), bend lines present.
+      part's units), with NO bend lines and NO point markers at hole centers
+      (those layers are suppressed by default).
 
 ## 2. The preview is honest
 
@@ -43,7 +44,9 @@ Setup: Inventor running, only the test drawing open, AutoFace.exe on disk.
 - [ ] A known purchased sheet metal part (if the drawing has one) is
       **Export**, not skipped.
 - [ ] Non-sheet-metal rows say **Skip: not sheet metal**; sub-assembly rows
-      **Skip: sub-assembly**; virtual/custom rows **Skip: no model**.
+      **Skip: sub-assembly**; virtual/custom rows **Skip: no model**. (Plain
+      non-sheet rows — description never says SHEET — appear here in the
+      preview but deliberately not in the end-of-run summary or counts.)
 - [ ] Any part outside 1/8" / 3/16" says **Skip: invalid thickness**.
 - [ ] Close the drawing, open one with a non-conforming name (or rename a
       copy), rescan: its rows say **Skip: unparseable drawing name**.
@@ -62,8 +65,9 @@ Setup: Inventor running, only the test drawing open, AutoFace.exe on disk.
 - [ ] `RUN {nn}` and thickness folders are created on demand; every exported
       file is where the preview said it would be.
 - [ ] Each DWG opens and is the right part's flat pattern.
-- [ ] The summary counts add up (exported + skipped + failed = preview rows),
-      and **Save log…** writes a readable .txt next to the exports.
+- [ ] The summary counts add up (exported + skipped + failed = preview rows
+      minus the silent non-sheet rows), and **Save log…** writes a readable
+      .txt next to the exports.
 - [ ] Press Export again without clearing the folder: every previously
       exported row now says **Skip: name collision**, and no file's modified
       time changes. Nothing is ever overwritten.
