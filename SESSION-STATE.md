@@ -35,9 +35,12 @@ Complete and tested (217 pytest cases + `--selftest`):
    all confirmed findings were fixed in commit 504d073 (dirty-flag safety,
    probe leak, close guard, two-pass column mapping, busy re-raise, summary
    count consistency, config diagnostics, selftest results file).
-2. DONE — CI runs #1 and #2 both succeeded; the windows-latest-build
-   release now carries AutoFace.exe build 2.504d073 (the verification-fix
-   build, sha256 833e1509…) + latest.json. Nothing is in flight.
+2. DONE — CI runs #1–#4 all succeeded. The windows-latest-build release
+   carries AutoFace.exe v0.1.2 (build 4.4172502): profile-only DWG default
+   (bend/arc-center layers suppressed, legacy configs auto-upgraded),
+   silent skips for non-sheet rows whose description never claimed sheet,
+   and the quiet troubleshooting log in %USERPROFILE%\AutoFace Logs.
+   Nothing is in flight.
 
 ## Then remaining
 
