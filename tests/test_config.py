@@ -71,12 +71,16 @@ def test_each_previous_default_upgrades_to_the_current_one(tmp_path):
     previous_defaults = [
         "FLAT PATTERN DWG",
         "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS",
+        "FLAT PATTERN DWG?InvisibleLayers="
+        "IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT;IV_ROLL_TANGENT",
     ]
     for stored in previous_defaults:
         path = tmp_path / "config.json"
         path.write_text(json.dumps({"dwg_format": stored}), encoding="utf-8")
         assert load_config(path).dwg_format == DEFAULT_DWG_FORMAT, stored
-    assert "IV_TANGENT;IV_ROLL_TANGENT" in DEFAULT_DWG_FORMAT
+    # Slot/punch center marks live on the tool-center layers, not
+    # IV_ARC_CENTERS — both must be in the shipped default.
+    assert "IV_TOOL_CENTER;IV_TOOL_CENTER_DOWN" in DEFAULT_DWG_FORMAT
 
 
 def test_a_custom_dwg_format_is_left_alone(tmp_path):

@@ -88,7 +88,7 @@ flagged so you hear about it.
     "0.125": "125",
     "0.1875": "1875"
   },
-  "dwg_format": "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT;IV_ROLL_TANGENT"
+  "dwg_format": "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT;IV_ROLL_TANGENT;IV_TOOL_CENTER;IV_TOOL_CENTER_DOWN"
 }
 ```
 
@@ -98,14 +98,15 @@ flagged so you hear about it.
   `"0.25": "250"` — no code change. If folder labels ever standardize to four
   digits, edit the values (`"0.125": "1250"` etc.).
 - **dwg_format** — the Inventor DataIO format string. The default exports the
-  cut profile only: bend centerlines (`IV_BEND`, `IV_BEND_DOWN`), hole-center
-  point markers (`IV_ARC_CENTERS`), and the bend-extent tangent lines
-  (`IV_TANGENT`, `IV_ROLL_TANGENT`) are all suppressed via `InvisibleLayers`.
-  To bring any of them back, remove that entry from the list. If your
-  Inventor version rejects the string (`AutoFace.exe --probe export` tells
-  you), add `AcadVersion=2018&` in front of `InvisibleLayers`. Configs
-  written by older AutoFace versions with a previous default are upgraded
-  automatically.
+  cut profile only: bend centerlines (`IV_BEND`, `IV_BEND_DOWN`), center
+  point markers for holes (`IV_ARC_CENTERS`) and for punched features/slots
+  (`IV_TOOL_CENTER`, `IV_TOOL_CENTER_DOWN`), and the bend-extent tangent
+  lines (`IV_TANGENT`, `IV_ROLL_TANGENT`) are all suppressed via
+  `InvisibleLayers`. To bring any of them back, remove that entry from the
+  list. If your Inventor version rejects the string
+  (`AutoFace.exe --probe export` tells you), add `AcadVersion=2018&` in
+  front of `InvisibleLayers`. Configs written by older AutoFace versions
+  with a previous default are upgraded automatically.
 
 ## Updates
 

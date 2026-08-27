@@ -26,9 +26,10 @@ Setup: Inventor running, only the test drawing open, AutoFace.exe on disk.
         `SKIP` (every part already has a flat pattern), see step 5.
 - [ ] Open the DWG the export probe wrote (in your CAM tool or a DWG viewer):
       it is the flat pattern, correct outline, correct scale (1:1 in the
-      part's units), with NO bend lines, NO point markers at hole centers,
-      and NO bend-extent tangent lines beside the bends (those layers are
-      all suppressed by default — the cut profile only).
+      part's units), with NO bend lines, NO point markers at hole OR slot
+      centers, and NO bend-extent tangent lines beside the bends (those
+      layers are all suppressed by default — the cut profile only). Check a
+      part with slots as well as one with round holes.
 
 ## 2. The preview is honest
 
