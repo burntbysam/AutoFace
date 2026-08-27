@@ -52,6 +52,9 @@ def _synthetic_session() -> list[ScannedDrawing]:
                 ScannedRow("7", "PN-7", "VIRTUAL", ModelKind.NO_MODEL),
                 # Collides with a file already on disk.
                 _sheet("9", 0.125 * inch, "SHEET,AL,SMOOTH,.125,10X10"),
+                # A tube conductor MODELED as a sheet metal document with a
+                # 1/8" wall: the BOM description rules it out of the export.
+                _sheet("10", 0.125 * inch, "TUBE,SQ,ALUM,1/2X6, ALLOY 6101-T64"),
             ),
         ),
         ScannedDrawing(
@@ -142,6 +145,11 @@ def run_selftest() -> tuple[bool, list[str]]:
             "existing file on disk is Skip: name collision, never overwritten",
             by_item[("8640-01101-I", "9")].classification
             is Classification.SKIP_NAME_COLLISION,
+        )
+        check(
+            "tube modeled as sheet metal is Skip: not sheet per BOM",
+            by_item[("8640-01101-I", "10")].classification
+            is Classification.SKIP_NOT_SHEET_PER_BOM,
         )
         check(
             "unparseable drawing name skips its rows",

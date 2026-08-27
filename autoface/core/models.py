@@ -30,6 +30,9 @@ class Classification(Enum):
 
     EXPORT = "Export"
     SKIP_NOT_SHEET_METAL = "Skip: not sheet metal"
+    # The model is a sheet metal document, but the BOM description says the
+    # part is something else (tube, channel…) — the description wins.
+    SKIP_NOT_SHEET_PER_BOM = "Skip: not sheet per BOM"
     SKIP_SUB_ASSEMBLY = "Skip: sub-assembly"
     SKIP_NO_MODEL = "Skip: no model"
     SKIP_INVALID_THICKNESS = "Skip: invalid thickness"

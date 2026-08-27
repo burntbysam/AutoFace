@@ -45,6 +45,9 @@ Setup: Inventor running, only the test drawing open, AutoFace.exe on disk.
       `RUN 11\125\...` for .125 parts.
 - [ ] A known purchased sheet metal part (if the drawing has one) is
       **Export**, not skipped.
+- [ ] A tube/channel conductor (e.g. `TUBE,SQ,ALUM,…`) shows **Skip: not
+      sheet per BOM** even if it is modeled as a sheet metal document — the
+      description column decides.
 - [ ] Non-sheet-metal rows say **Skip: not sheet metal**; sub-assembly rows
       **Skip: sub-assembly**; virtual/custom rows **Skip: no model**. (Any
       skipped row whose description never says SHEET or a thickness appears

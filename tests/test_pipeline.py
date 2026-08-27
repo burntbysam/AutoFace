@@ -114,8 +114,8 @@ def test_every_skip_kind_goes_silent_when_the_description_is_not_sheet():
             ),
             ScannedRow("23", "NF-2003", "VERTICAL FILTER BREATHER BODY",
                        ModelKind.NO_MODEL),
-            # Item 17: a channel modeled as a sheet metal document — invalid
-            # thickness, but the description says channel, so it is expected.
+            # A channel modeled as a sheet metal document: the description
+            # says channel, so it never reaches the thickness check.
             sheet_row(
                 "17",
                 0.314,
@@ -128,9 +128,44 @@ def test_every_skip_kind_goes_silent_when_the_description_is_not_sheet():
         Classification.SKIP_SUB_ASSEMBLY,
         Classification.SKIP_SUB_ASSEMBLY,
         Classification.SKIP_NO_MODEL,
-        Classification.SKIP_INVALID_THICKNESS,
+        Classification.SKIP_NOT_SHEET_PER_BOM,
     ]
     assert all(row.silent is True for row in plan.rows)
+
+
+def test_a_tube_modeled_as_sheet_metal_never_exports():
+    # The real 8640 batch escape: TUBE conductors modeled as sheet metal
+    # documents with a 1/8" wall exported as if they were 1/8" sheet.
+    plan = plan_of(
+        [
+            sheet_row(
+                "6",
+                0.125,
+                "TUBE,SQ,ALUM,1/2X6, ALLOY 6101-T64",
+                part_number="CAL11011016",
+            ),
+            sheet_row(
+                "5",
+                0.125,
+                "TUBE, SQ, ALUM, 1/2 x 6 x 6",
+                part_number="CAL11011016",
+            ),
+        ]
+    )
+    assert all(
+        row.classification is Classification.SKIP_NOT_SHEET_PER_BOM
+        for row in plan.rows
+    )
+    assert all(row.silent is True for row in plan.rows)
+
+
+def test_a_blank_description_still_exports_but_is_flagged():
+    # No description means nothing to judge against: the model type governs,
+    # loudly — a data-entry gap must never silently drop (or pass) a part.
+    plan = plan_of([sheet_row("1", 0.125, description="")])
+    row = plan.rows[0]
+    assert row.classification is Classification.EXPORT
+    assert any("no BOM description" in flag for flag in row.flags)
 
 
 def test_sheet_claiming_skips_stay_loud_for_every_kind():
@@ -148,12 +183,11 @@ def test_sheet_claiming_skips_stay_loud_for_every_kind():
 def test_export_class_problems_are_never_silent():
     # A collision or bad item number is a DWG that would have shipped and
     # did not — silencing those would hide a missing export.
-    # Non-sheet descriptions on purpose: even then, these must stay loud.
     target = os.path.join("C:\\out", "RUN 11", "125", "8640-1101-5.dwg")
     plan = plan_of(
         [
-            sheet_row("5", description="BRACKET SPECIAL"),
-            sheet_row("5/6", description="BRACKET SPECIAL"),  # bad item number
+            sheet_row("5", description="SHEET,AL,.125,10X10"),
+            sheet_row("5/6", description="SHEET,AL,.125,10X10"),  # bad item
         ],
         exists=lambda p: p == target,
     )

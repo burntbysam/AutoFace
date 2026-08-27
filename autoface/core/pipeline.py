@@ -125,7 +125,27 @@ def build_plan(
                 )
                 continue
 
-            # Sheet metal from here on.
+            # Sheet metal document from here on — but the BOM description is
+            # the authority on what the part IS. A tube or channel modeled as
+            # a sheet metal document (folded tube with a 1/8" wall, say) must
+            # not export as if it were 1/8" sheet.
+            description_text = scanned.description.strip()
+            if description_text and not looks_like_sheet_description(
+                description_text
+            ):
+                rows.append(
+                    row(Classification.SKIP_NOT_SHEET_PER_BOM, silent=expected_skip)
+                )
+                continue
+            if not description_text:
+                # Nothing to judge against: export on the model type alone,
+                # but say so — a blank description must never silently drop
+                # a real part, and never silently pass one either.
+                flags.append(
+                    "no BOM description to cross-check; exported on the "
+                    "model's sheet metal type alone"
+                )
+
             thickness_label = (
                 table.label_for(resolution.effective_sixteenths)
                 if resolution.effective_sixteenths is not None

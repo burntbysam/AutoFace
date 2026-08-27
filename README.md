@@ -49,7 +49,8 @@ assembly's internal BOM):
 
 | Row resolves to | Result |
 |---|---|
-| Sheet metal part, valid thickness | **Export** (purchased or normal BOM structure — both export) |
+| Sheet metal part, valid thickness, description reads as sheet | **Export** (purchased or normal BOM structure — both export) |
+| Sheet metal *document* whose description says otherwise (tube, channel…) | Skip: not sheet per BOM — the description column is the authority, so a folded tube with a 1/8" wall can't export as 1/8" sheet |
 | Non-sheet-metal part | Skip: not sheet metal |
 | Sub-assembly | Skip: sub-assembly (future versions will descend) |
 | Virtual/custom row, no model file | Skip: no model |
@@ -64,7 +65,9 @@ troubleshooting log, but stays out of the end-of-run counts and flag list. A
 skip on a row whose description *does* say sheet stays counted and flagged
 (that mismatch is an anomaly worth hearing about), and name collisions and
 bad item numbers are always loud — those are DWGs that would have shipped
-and did not.
+and did not. A sheet metal part with a *blank* description still exports on
+the model type alone, flagged, so a data-entry gap can never silently drop
+a part.
 
 Flat patterns: an existing flat pattern is used as-is. If a part has none,
 AutoFace creates one via the API, exports it, then **deletes it again and
