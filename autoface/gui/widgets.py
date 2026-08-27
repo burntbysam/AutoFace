@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -17,9 +17,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..core.models import Plan, RunResult
+from ..core.models import Classification, Plan, RunResult
 
 PREVIEW_HEADERS = (
+    "Export",
     "Drawing",
     "Item",
     "Part number",
@@ -27,6 +28,7 @@ PREVIEW_HEADERS = (
     "Classification",
     "Target path",
 )
+CHECK_COLUMN = 0
 
 _NUMBER_CHUNKS = re.compile(r"(\d+)")
 _THICKNESS_PREFIX = re.compile(r'\s*([0-9.]+)"')
@@ -70,11 +72,15 @@ class PreviewTable(QTableWidget):
 
     This is the user's chance to catch a bad parse or thickness read before
     anything is written, so it shows exactly what the run will do: the
-    resolved thickness, the classification, and the full target path.
+    resolved thickness, the classification, and the full target path — plus
+    a tick box per exportable row to hand-pick a partial run.
     """
+
+    selection_changed = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(0, len(PREVIEW_HEADERS), parent)
+        self._populating = False
         self.setHorizontalHeaderLabels(PREVIEW_HEADERS)
         self.setAlternatingRowColors(True)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -90,6 +96,12 @@ class PreviewTable(QTableWidget):
         # actually picks a column, so a fresh scan shows drawing order.
         self.setSortingEnabled(True)
         header.setSortIndicator(-1, Qt.SortOrder.AscendingOrder)
+        self.itemChanged.connect(self._on_item_changed)
+
+    def _on_item_changed(self, item) -> None:
+        if self._populating or item.column() != CHECK_COLUMN:
+            return
+        self.selection_changed.emit()
 
     def show_plan(self, plan: Plan) -> None:
         # Repopulating with sorting live would scatter half-filled rows;
@@ -98,32 +110,86 @@ class PreviewTable(QTableWidget):
         sort_section = header.sortIndicatorSection()
         sort_order = header.sortIndicatorOrder()
         self.setSortingEnabled(False)
+        self._populating = True
+        try:
+            self.setRowCount(len(plan.rows))
+            for index, row in enumerate(plan.rows):
+                exportable = row.classification is Classification.EXPORT
+                check = _SortableItem("", 0 if exportable else 1)
+                check.setData(Qt.ItemDataRole.UserRole, index)
+                if exportable:
+                    check.setFlags(
+                        Qt.ItemFlag.ItemIsEnabled
+                        | Qt.ItemFlag.ItemIsSelectable
+                        | Qt.ItemFlag.ItemIsUserCheckable
+                    )
+                    check.setCheckState(Qt.CheckState.Checked)
+                    check.setToolTip("Untick to leave this part out of the run")
+                else:
+                    check.setFlags(
+                        Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+                    )
+                self.setItem(index, CHECK_COLUMN, check)
 
-        self.setRowCount(len(plan.rows))
-        for index, row in enumerate(plan.rows):
-            values = (
-                (row.drawing_label, _natural_key(row.drawing_label)),
-                (row.item, _natural_key(row.item)),
-                (row.part_number, _natural_key(row.part_number)),
-                (row.thickness_display, _thickness_key(row.thickness_display)),
-                (row.classification.label, _natural_key(row.classification.label)),
-                (row.target_relative, _natural_key(row.target_relative)),
-            )
-            for column, (value, key) in enumerate(values):
-                item = _SortableItem(str(value), key)
-                if column == 0:
-                    item.setToolTip(row.drawing_path)
-                elif column == len(values) - 1 and row.target_path:
-                    item.setToolTip(row.target_path)
-                elif row.flags:
-                    item.setToolTip("\n".join(row.flags))
-                self.setItem(index, column, item)
+                values = (
+                    (row.drawing_label, _natural_key(row.drawing_label)),
+                    (row.item, _natural_key(row.item)),
+                    (row.part_number, _natural_key(row.part_number)),
+                    (row.thickness_display, _thickness_key(row.thickness_display)),
+                    (
+                        row.classification.label,
+                        _natural_key(row.classification.label),
+                    ),
+                    (row.target_relative, _natural_key(row.target_relative)),
+                )
+                for offset, (value, key) in enumerate(values):
+                    column = CHECK_COLUMN + 1 + offset
+                    item = _SortableItem(str(value), key)
+                    if offset == 0:
+                        item.setToolTip(row.drawing_path)
+                    elif column == len(PREVIEW_HEADERS) - 1 and row.target_path:
+                        item.setToolTip(row.target_path)
+                    elif row.flags:
+                        item.setToolTip("\n".join(row.flags))
+                    self.setItem(index, column, item)
+        finally:
+            self._populating = False
 
         self.setSortingEnabled(True)
         if 0 <= sort_section < len(PREVIEW_HEADERS):
             self.sortItems(sort_section, sort_order)
         else:
             header.setSortIndicator(-1, Qt.SortOrder.AscendingOrder)
+        self.selection_changed.emit()
+
+    # -- selection -----------------------------------------------------
+    def _checkable_items(self):
+        for index in range(self.rowCount()):
+            item = self.item(index, CHECK_COLUMN)
+            if item is not None and item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+                yield item
+
+    def selected_plan_indexes(self) -> set[int]:
+        """Plan-row indexes of the ticked rows, immune to display sorting."""
+        return {
+            item.data(Qt.ItemDataRole.UserRole)
+            for item in self._checkable_items()
+            if item.checkState() == Qt.CheckState.Checked
+        }
+
+    def selectable_count(self) -> int:
+        return sum(1 for _ in self._checkable_items())
+
+    def set_all_checked(self, checked: bool) -> None:
+        """Deselect all (False) or reset to every exportable sheet part (True)."""
+        state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+        self._populating = True
+        try:
+            for item in self._checkable_items():
+                item.setCheckState(state)
+        finally:
+            self._populating = False
+        self.selection_changed.emit()
 
 
 class SummaryDialog(QDialog):

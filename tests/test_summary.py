@@ -97,6 +97,31 @@ def test_row_flags_survive_into_the_summary_even_for_exported_rows():
     assert any("cross-check" in line and "exported" in line for line in lines)
 
 
+def test_deselected_rows_are_their_own_category_not_skips():
+    from dataclasses import replace
+
+    from autoface.core.models import Plan
+    from autoface.core.summary import total_skipped
+
+    plan = make_plan()
+    deselected = replace(plan.exportable[0], selected=False)
+    rows = tuple(
+        deselected if row is plan.exportable[0] else row for row in plan.rows
+    )
+    edited = Plan(rows=rows, drawing_notes=plan.drawing_notes)
+
+    assert edited.exportable == ()  # nothing left to run
+    assert [row.item for row in edited.deselected] == ["1"]
+    result = RunResult()
+    # Not counted as skipped, not in the flag list…
+    assert total_skipped(edited, result) == 1  # only the loud preview skip
+    assert not any("item 1 " in line for line in flag_lines(edited, result))
+    # …but called out by name in the saved log.
+    text = summarize_run(edited, result, "C:\\out", "now")
+    assert "Not selected: 1" in text
+    assert "item 1 (PN-1): deselected in the preview" in text
+
+
 def test_total_skipped_counts_preview_and_run_skips():
     from autoface.core.summary import total_skipped
 

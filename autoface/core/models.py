@@ -83,6 +83,9 @@ class PlanRow:
     # skip count and flag list: a skip that is entirely expected (a BOM row
     # whose description never claimed to be sheet) is noise, not news.
     silent: bool = False
+    # The user can untick an exportable row in the preview; a deselected row
+    # is neither run nor counted as skipped — it is its own category.
+    selected: bool = True
 
 
 @dataclass(frozen=True)
@@ -93,7 +96,17 @@ class Plan:
     @property
     def exportable(self) -> tuple[PlanRow, ...]:
         return tuple(
-            row for row in self.rows if row.classification is Classification.EXPORT
+            row
+            for row in self.rows
+            if row.classification is Classification.EXPORT and row.selected
+        )
+
+    @property
+    def deselected(self) -> tuple[PlanRow, ...]:
+        return tuple(
+            row
+            for row in self.rows
+            if row.classification is Classification.EXPORT and not row.selected
         )
 
 

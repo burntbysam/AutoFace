@@ -98,12 +98,12 @@ class TestScanFlow:
         assert pump(qapp, lambda: window._plan is not None), "scan never finished"
 
         assert window.preview.rowCount() == 2
-        assert window.preview.item(0, 1).text() == "1"
-        assert window.preview.item(0, 4).text() == "Export"
+        assert window.preview.item(0, 2).text() == "1"
+        assert window.preview.item(0, 5).text() == "Export"
         assert (
-            window.preview.item(0, 5).text() == "RUN 11\\1875\\8640-1101-1.dwg"
+            window.preview.item(0, 6).text() == "RUN 11\\1875\\8640-1101-1.dwg"
         )
-        assert window.preview.item(1, 4).text() == "Skip: not sheet metal"
+        assert window.preview.item(1, 5).text() == "Skip: not sheet metal"
         assert window.export_button.isEnabled()
 
     def test_no_open_drawings_is_said_in_the_ui(self, qapp, window, monkeypatch):
@@ -187,7 +187,7 @@ class TestPreviewSorting:
             ],
         )
         try:
-            assert self.column(table, 1) == ["2", "1"]  # untouched
+            assert self.column(table, 2) == ["2", "1"]  # untouched
         finally:
             table.deleteLater()
 
@@ -204,10 +204,10 @@ class TestPreviewSorting:
             ],
         )
         try:
-            table.sortItems(1, Qt.SortOrder.AscendingOrder)
-            assert self.column(table, 1) == ["1", "1A", "2", "10"]
-            table.sortItems(1, Qt.SortOrder.DescendingOrder)
-            assert self.column(table, 1) == ["10", "2", "1A", "1"]
+            table.sortItems(2, Qt.SortOrder.AscendingOrder)
+            assert self.column(table, 2) == ["1", "1A", "2", "10"]
+            table.sortItems(2, Qt.SortOrder.DescendingOrder)
+            assert self.column(table, 2) == ["10", "2", "1A", "1"]
         finally:
             table.deleteLater()
 
@@ -223,8 +223,8 @@ class TestPreviewSorting:
             ],
         )
         try:
-            table.sortItems(3, Qt.SortOrder.AscendingOrder)
-            assert self.column(table, 3) == ['0.125" (1/8")', '0.19" (3/16")', "—"]
+            table.sortItems(4, Qt.SortOrder.AscendingOrder)
+            assert self.column(table, 4) == ['0.125" (1/8")', '0.19" (3/16")', "—"]
         finally:
             table.deleteLater()
 
@@ -239,8 +239,8 @@ class TestPreviewSorting:
             ],
         )
         try:
-            table.sortItems(1, Qt.SortOrder.AscendingOrder)
-            assert self.column(table, 2) == ["PN-of-1", "PN-of-2"]
+            table.sortItems(2, Qt.SortOrder.AscendingOrder)
+            assert self.column(table, 3) == ["PN-of-1", "PN-of-2"]
         finally:
             table.deleteLater()
 
@@ -256,7 +256,7 @@ class TestPreviewSorting:
             ],
         )
         try:
-            table.sortItems(1, Qt.SortOrder.AscendingOrder)
+            table.sortItems(2, Qt.SortOrder.AscendingOrder)
             refreshed = Plan(
                 rows=tuple(
                     PlanRow(
@@ -273,9 +273,115 @@ class TestPreviewSorting:
                 )
             )
             table.show_plan(refreshed)
-            assert self.column(table, 1) == ["4", "20", "30"]
+            assert self.column(table, 2) == ["4", "20", "30"]
         finally:
             table.deleteLater()
+
+
+class TestSelection:
+    def two_row_session(self, tmp_path):
+        drawing = ScannedDrawing(
+            path=str(tmp_path / "8640-01101-I.idw"),
+            rows=tuple(
+                ScannedRow(
+                    item=item,
+                    part_number=f"PN-{item}",
+                    description="SHEET,AL,SMOOTH,.125,60X144",
+                    model_kind=ModelKind.SHEET_METAL,
+                    model_path=f"C:\\m\\p{item}.ipt",
+                    thickness_cm=0.125 * INCH,
+                    has_flat_pattern=True,
+                )
+                for item in ("1", "2")
+            ),
+        )
+        documents = [fakes.Document(f"C:\\m\\p{item}.ipt") for item in ("1", "2")]
+        return drawing, fakes.Application(in_session=documents)
+
+    def scan(self, qapp, window, monkeypatch, tmp_path):
+        drawing, fake_app = self.two_row_session(tmp_path)
+        patch_com(monkeypatch, fake_app)
+        monkeypatch.setattr(scan_module, "scan_session", lambda app: [drawing])
+        window._scan()
+        assert pump(qapp, lambda: window._plan is not None)
+
+    def test_all_sheet_parts_start_selected(self, qapp, window, monkeypatch, tmp_path):
+        window.test_config.output_root = str(tmp_path / "out")
+        self.scan(qapp, window, monkeypatch, tmp_path)
+        assert window.preview.selectable_count() == 2
+        assert window.preview.selected_plan_indexes() == {0, 1}
+        assert window.export_button.isEnabled()
+
+    def test_deselect_all_disables_export_and_default_restores(
+        self, qapp, window, monkeypatch, tmp_path
+    ):
+        window.test_config.output_root = str(tmp_path / "out")
+        self.scan(qapp, window, monkeypatch, tmp_path)
+
+        window.preview.set_all_checked(False)
+        assert window.preview.selected_plan_indexes() == set()
+        assert not window.export_button.isEnabled()
+        assert not window.deselect_button.isEnabled()
+
+        window.preview.set_all_checked(True)  # "Select all sheet parts"
+        assert window.preview.selected_plan_indexes() == {0, 1}
+        assert window.export_button.isEnabled()
+
+    def test_only_ticked_rows_export(self, qapp, window, monkeypatch, tmp_path):
+        from PySide6.QtCore import Qt
+
+        out_root = tmp_path / "out"
+        window.test_config.output_root = str(out_root)
+        self.scan(qapp, window, monkeypatch, tmp_path)
+
+        # Untick item 2 (plan index 1; display order == plan order here).
+        window.preview.item(1, 0).setCheckState(Qt.CheckState.Unchecked)
+        assert window.preview.selected_plan_indexes() == {0}
+
+        results: list = []
+        monkeypatch.setattr(
+            appmod.MainWindow,
+            "_show_summary",
+            lambda self, result: results.append(result),
+        )
+        window._export()
+        assert pump(qapp, lambda: bool(results))
+
+        assert results[0].exported == 1
+        assert (out_root / "RUN 11" / "125" / "8640-1101-1.dwg").exists()
+        assert not (out_root / "RUN 11" / "125" / "8640-1101-2.dwg").exists()
+        # The run plan records the deselection for the summary and log.
+        assert len(window._run_plan.deselected) == 1
+        assert window._run_plan.deselected[0].item == "2"
+
+    def test_selection_indexes_survive_display_sorting(
+        self, qapp, window, monkeypatch, tmp_path
+    ):
+        from PySide6.QtCore import Qt
+
+        window.test_config.output_root = str(tmp_path / "out")
+        self.scan(qapp, window, monkeypatch, tmp_path)
+
+        window.preview.sortItems(2, Qt.SortOrder.DescendingOrder)  # item: 2, 1
+        assert window.preview.item(0, 2).text() == "2"
+        # Untick the top display row — that is item 2, plan index 1.
+        window.preview.item(0, 0).setCheckState(Qt.CheckState.Unchecked)
+        assert window.preview.selected_plan_indexes() == {0}
+
+    def test_skip_rows_are_not_checkable(self, qapp, window, monkeypatch, tmp_path):
+        from PySide6.QtCore import Qt
+
+        window.test_config.output_root = str(tmp_path / "out")
+        patch_com(monkeypatch, fakes.Application())
+        monkeypatch.setattr(
+            scan_module, "scan_session", lambda app: [scanned_drawing()]
+        )
+        window._scan()
+        assert pump(qapp, lambda: window._plan is not None)
+
+        assert window.preview.selectable_count() == 1  # only the sheet part
+        skip_check = window.preview.item(1, 0)
+        assert not skip_check.flags() & Qt.ItemFlag.ItemIsUserCheckable
 
 
 class TestSummaryDialog:
@@ -407,8 +513,8 @@ class TestExportFlow:
         # as a name collision so a second run cannot overwrite it.
         assert pump(
             qapp,
-            lambda: window.preview.item(0, 4) is not None
-            and "collision" in window.preview.item(0, 4).text(),
+            lambda: window.preview.item(0, 5) is not None
+            and "collision" in window.preview.item(0, 5).text(),
         )
 
         # The quiet troubleshooting log recorded the full pick list and the run.

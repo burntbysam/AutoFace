@@ -30,7 +30,12 @@ a sibling tool to AutoBOM: one exe, self-updating, same look.
    Click any column header to sort (click again to reverse) — item and part
    numbers sort numerically, thickness by value. Sorting is display-only;
    exports always run in drawing order.
-5. Press **Export flat patterns**. The end-of-run summary shows counts and a
+5. Pick what to export with the tick boxes in the **Export** column: every
+   sheet part starts ticked; untick anything you want left out of this run.
+   **Deselect all** clears every tick; **Select all sheet parts** resets to
+   the normal full selection. Unticked parts are not run and not counted as
+   skipped — the summary and log list them separately as "Not selected".
+6. Press **Export flat patterns**. The end-of-run summary shows counts and a
    flag list, and offers to save the log as a .txt next to the exports.
 
 On first use, run the probes and the [manual test checklist](TESTING.md)

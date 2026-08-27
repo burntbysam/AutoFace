@@ -28,6 +28,8 @@ def flag_lines(plan: Plan, result: RunResult | None = None) -> list[str]:
             continue
         if row.silent:
             continue  # expected skips stay out of the flag list entirely
+        if row.classification is Classification.EXPORT and not row.selected:
+            continue  # deselected by the user: deliberate, not a flag
         if row.classification is Classification.EXPORT and not row.flags:
             continue
         prefix = f"{row.drawing_label} item {row.item or '?'}"
@@ -62,6 +64,14 @@ def summarize_run(
         f"Skipped:  {total_skipped(plan, result)}",
         f"Failed:   {result.failed}",
     ]
+    deselected = plan.deselected
+    if deselected:
+        lines.append(f"Not selected: {len(deselected)}")
+        lines += [
+            f"  {row.drawing_label} item {row.item} ({row.part_number}): "
+            "deselected in the preview"
+            for row in deselected
+        ]
     flags = flag_lines(plan, result)
     if flags:
         lines += ["", "Flags:"]

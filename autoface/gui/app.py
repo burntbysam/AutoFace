@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import replace
 from datetime import datetime
 from html import escape
 from pathlib import Path
@@ -221,6 +222,7 @@ class MainWindow(QMainWindow):
         self._config = load_config()
         self._scanned: list[ScannedDrawing] | None = None
         self._plan: Plan | None = None
+        self._run_plan: Plan | None = None  # the plan as ticked for the last run
         self._result: RunResult | None = None
         self._update_thread: QThread | None = None
         self._install_thread: QThread | None = None
@@ -284,6 +286,16 @@ class MainWindow(QMainWindow):
         self.scan_button = QPushButton("Scan open drawings")
         self.scan_button.clicked.connect(self._scan)
         actions.addWidget(self.scan_button)
+        self.deselect_button = QPushButton("Deselect all")
+        self.deselect_button.clicked.connect(
+            lambda: self.preview.set_all_checked(False)
+        )
+        actions.addWidget(self.deselect_button)
+        self.select_default_button = QPushButton("Select all sheet parts")
+        self.select_default_button.clicked.connect(
+            lambda: self.preview.set_all_checked(True)
+        )
+        actions.addWidget(self.select_default_button)
         actions.addStretch(1)
         self.export_button = QPushButton("Export flat patterns")
         self.export_button.setMinimumWidth(220)
@@ -292,6 +304,7 @@ class MainWindow(QMainWindow):
         outer.addLayout(actions)
 
         self.preview = PreviewTable()
+        self.preview.selection_changed.connect(self._update_ready_state)
         outer.addWidget(self.preview, 1)
 
         self.log = QPlainTextEdit()
@@ -323,16 +336,26 @@ class MainWindow(QMainWindow):
         exporting = (
             self._export_thread is not None and self._export_thread.isRunning()
         )
-        self.scan_button.setEnabled(not scanning and not exporting)
-        exportable = bool(self._plan and self._plan.exportable)
+        busy = scanning or exporting
+        self.scan_button.setEnabled(not busy)
+        selectable = self.preview.selectable_count()
+        selected = len(self.preview.selected_plan_indexes())
+        has_plan = self._plan is not None and selectable > 0
+        self.deselect_button.setEnabled(has_plan and not busy and selected > 0)
+        self.select_default_button.setEnabled(
+            has_plan and not busy and selected < selectable
+        )
         self.export_button.setEnabled(
-            exportable
+            selected > 0
             and bool(self._config.output_root)
-            and not scanning
-            and not exporting
+            and not busy
         )
         if not self._config.output_root:
             self.statusBar().showMessage("Choose an output folder to begin")
+        elif has_plan and not busy:
+            self.statusBar().showMessage(
+                f"{selected} of {selectable} sheet part(s) selected to export"
+            )
 
     # -- scanning -------------------------------------------------------
     def _scan(self) -> None:
@@ -438,12 +461,34 @@ class MainWindow(QMainWindow):
         self._update_ready_state()
 
     # -- exporting ------------------------------------------------------
+    def _run_plan_from_selection(self) -> Plan | None:
+        """The plan as ticked in the preview: unticked rows become deselected."""
+        if self._plan is None:
+            return None
+        chosen = self.preview.selected_plan_indexes()
+        rows = tuple(
+            replace(row, selected=False)
+            if row.classification is Classification.EXPORT and index not in chosen
+            else row
+            for index, row in enumerate(self._plan.rows)
+        )
+        return Plan(rows=rows, drawing_notes=self._plan.drawing_notes)
+
     def _export(self) -> None:
-        if self._plan is None or not self._plan.exportable:
+        run_plan = self._run_plan_from_selection()
+        if run_plan is None or not run_plan.exportable:
             return
         if self._export_thread is not None and self._export_thread.isRunning():
             return
-        total = len(self._plan.exportable)
+        self._run_plan = run_plan
+        for row in run_plan.deselected:
+            logger.info(
+                "deselected by the user: %s item %s (%s)",
+                row.drawing_label,
+                row.item,
+                row.part_number,
+            )
+        total = len(run_plan.exportable)
 
         progress = QProgressDialog("Starting…", "Cancel", 0, total, self)
         progress.setWindowTitle("Exporting flat patterns")
@@ -452,7 +497,7 @@ class MainWindow(QMainWindow):
         progress.setAutoReset(False)
         progress.setMinimumDuration(0)
 
-        thread = ExportWorker(self._plan, self._config, self)
+        thread = ExportWorker(run_plan, self._config, self)
 
         def on_progress(done: int, count: int) -> None:
             progress.setMaximum(count)
@@ -477,20 +522,17 @@ class MainWindow(QMainWindow):
             progress.close()
             self._clear_export_thread()
             self._result = result
-            skipped = (
-                total_skipped(self._plan, result) if self._plan else result.skipped
-            )
+            plan = self._run_plan or self._plan
+            skipped = total_skipped(plan, result) if plan else result.skipped
             self.statusBar().showMessage(
                 f"Done — exported {result.exported}, skipped {skipped}, "
                 f"failed {result.failed}"
             )
-            if self._plan is not None:
+            if plan is not None:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
                 logger.info(
                     "run summary:\n%s",
-                    summarize_run(
-                        self._plan, result, self._config.output_root, timestamp
-                    ),
+                    summarize_run(plan, result, self._config.output_root, timestamp),
                 )
             self._show_summary(result)
             # The preview is now stale: exported files exist on disk, so a
@@ -521,16 +563,16 @@ class MainWindow(QMainWindow):
         self._update_ready_state()
 
     def _show_summary(self, result: RunResult) -> None:
-        assert self._plan is not None
-        flags = flag_lines(self._plan, result)
-        dialog = SummaryDialog(
-            result, flags, total_skipped(self._plan, result), self
-        )
+        plan = self._run_plan or self._plan
+        assert plan is not None
+        flags = flag_lines(plan, result)
+        dialog = SummaryDialog(result, flags, total_skipped(plan, result), self)
         dialog.save_button.clicked.connect(lambda: self._save_log(result))
         dialog.exec()
 
     def _save_log(self, result: RunResult) -> None:
-        assert self._plan is not None
+        plan = self._run_plan or self._plan
+        assert plan is not None
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         root = self._config.output_root or str(Path.home())
@@ -546,7 +588,7 @@ class MainWindow(QMainWindow):
             destination = destination.with_suffix(".txt")
         try:
             destination.write_text(
-                summarize_run(self._plan, result, self._config.output_root, timestamp),
+                summarize_run(plan, result, self._config.output_root, timestamp),
                 encoding="utf-8",
             )
         except OSError as exc:
