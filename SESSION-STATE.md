@@ -50,6 +50,32 @@ Complete and tested (217 pytest cases + `--selftest`):
   drawing on their Inventor Professional 2025.3 and paste
   AutoFace-probe-results.txt back if anything looks off.
 
+## Agreed future feature (do NOT build until the user says go)
+
+Corner-relief ("notch") closure — decided 2026-08 but explicitly parked:
+
+- Problem: Inventor's unfold bakes a small rectangular corner relief into
+  the outer profile where two bends meet; the shop wants those corners
+  closed (edges extended to a sharp intersection), per the user's redlined
+  screenshots.
+- Decision: Route 2 (post-process the exported geometry in AutoFace).
+  DXF output is acceptable to their CAM, so switch the export to
+  "FLAT PATTERN DXF" and post-process with ezdxf — no ODA converter, stays
+  single-file. (Route 1, Trim-to-Bend in the sheet metal rule, was offered
+  but the user chose Route 2.)
+- Detection rule (from the user's redline): REMOVE only a short 3-segment
+  rectangular indentation sitting at the junction of two long perpendicular
+  edges (a corner relief) — replace it by extending both edges to their
+  intersection; size-capped to a small multiple of the part's thickness
+  (known per row). KEEP everything else — the user confirmed NO mid-edge /
+  straight-edge relief ever needs removing, so anything not matching the
+  corner signature is untouched.
+- Safety requirements when built: conservative thresholds, log every
+  closure per part in the run log, a config off-switch, a probe comparing
+  raw vs cleaned geometry, and a new TESTING.md section — this edits cut
+  geometry, so it gets never-save-level paranoia. Naming scheme keeps
+  {job}-{assembly}-{item} with .dxf extension; collision rule unchanged.
+
 ## Session preferences the user stated
 
 - Failsafe session state to the repo when nearing token limits (this file).
