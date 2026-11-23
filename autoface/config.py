@@ -22,13 +22,21 @@ DEFAULT_THICKNESS_TABLE = {
 # Inventor's default flat-pattern DWG, minus the layers CAM does not want:
 # bend centerlines (IV_BEND, IV_BEND_DOWN), the point markers at hole centers
 # (IV_ARC_CENTERS) and at punched-feature/slot centers (IV_TOOL_CENTER,
-# IV_TOOL_CENTER_DOWN), and the bend-extent tangent lines flanking each bend
-# (IV_TANGENT; IV_ROLL_TANGENT is their rolled-part counterpart). If a given
-# Inventor version rejects the string (the --probe export check covers this),
-# prepend "AcadVersion=2018&" to the options.
+# IV_TOOL_CENTER_DOWN), the bend-extent tangent lines flanking each bend
+# (IV_TANGENT; IV_ROLL_TANGENT is their rolled-part counterpart), and any
+# sketch geometry visible on the flat pattern (IV_UNCONSUMED_SKETCHES, plus
+# IV_UNCONSUMED_SKETCH_CONSTRUCTION, where Inventor 2025 and later put that
+# sketch's construction lines; older versions have no such layer and keep
+# them on IV_UNCONSUMED_SKETCHES). Sketch geometry is not part of the solid
+# at all: a layout or reference sketch left visible in a model would
+# otherwise ship as loose lines, points and even closed shapes beside the
+# part, which a nesting system can take for a second part. If a given
+# Inventor version rejects the string (the --probe export check covers
+# this), prepend "AcadVersion=2018&" to the options.
 _HIDDEN_LAYERS = (
     "IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT;IV_ROLL_TANGENT;"
-    "IV_TOOL_CENTER;IV_TOOL_CENTER_DOWN"
+    "IV_TOOL_CENTER;IV_TOOL_CENTER_DOWN;"
+    "IV_UNCONSUMED_SKETCHES;IV_UNCONSUMED_SKETCH_CONSTRUCTION"
 )
 DEFAULT_DWG_FORMAT = f"FLAT PATTERN DWG?InvisibleLayers={_HIDDEN_LAYERS}"
 
@@ -40,6 +48,8 @@ _PREVIOUS_HIDDEN_LAYERS = (
     "",  # v0.1.0: bare "FLAT PATTERN DWG"
     "IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS",  # v0.1.1
     "IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT;IV_ROLL_TANGENT",  # v0.1.3
+    "IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT;IV_ROLL_TANGENT;"
+    "IV_TOOL_CENTER;IV_TOOL_CENTER_DOWN",  # v0.1.5 – v0.2.1
 )
 
 

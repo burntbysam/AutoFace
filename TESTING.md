@@ -30,6 +30,10 @@ Setup: Inventor running, only the test drawing open, AutoFace.exe on disk.
       centers, and NO bend-extent tangent lines beside the bends (those
       layers are all suppressed by default — the cut profile only). Check a
       part with slots as well as one with round holes.
+- [ ] Zoom to extents on an exported file: the drawing is no bigger than the
+      part. Geometry outside or across the part outline (boxes, long lines,
+      loose points) means a sketch came through — the layer list in the file
+      should contain only `IV_OUTER_PROFILE` and `IV_INTERIOR_PROFILES`.
 
 ## 2. The preview is honest
 

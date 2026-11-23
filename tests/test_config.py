@@ -73,6 +73,9 @@ def test_each_previous_default_upgrades_to_the_current_one(tmp_path):
         "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS",
         "FLAT PATTERN DWG?InvisibleLayers="
         "IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT;IV_ROLL_TANGENT",
+        "FLAT PATTERN DWG?InvisibleLayers="
+        "IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT;IV_ROLL_TANGENT;"
+        "IV_TOOL_CENTER;IV_TOOL_CENTER_DOWN",
     ]
     for stored in previous_defaults:
         path = tmp_path / "config.json"
@@ -81,6 +84,29 @@ def test_each_previous_default_upgrades_to_the_current_one(tmp_path):
     # Slot/punch center marks live on the tool-center layers, not
     # IV_ARC_CENTERS — both must be in the shipped default.
     assert "IV_TOOL_CENTER;IV_TOOL_CENTER_DOWN" in DEFAULT_DWG_FORMAT
+
+
+def test_sketch_geometry_is_suppressed_by_default():
+    # Batch escape 8718-1103-6: a layout sketch left visible on the flat
+    # pattern shipped as 13 loose lines, 3 points and a closed 50 x 50 square
+    # beside the part. Sketch geometry is never cut profile.
+    hidden = DEFAULT_DWG_FORMAT.split("=", 1)[1].split(";")
+    assert "IV_UNCONSUMED_SKETCHES" in hidden
+    # Inventor 2025+ moves that sketch's construction lines to their own
+    # layer; hiding only the first would let them through on the second.
+    assert "IV_UNCONSUMED_SKETCH_CONSTRUCTION" in hidden
+
+
+def test_no_shipped_default_maps_to_itself():
+    # A previous default that survived as "current" would mean a release
+    # changed the layer list without retiring the old one.
+    from autoface.config import _LEGACY_DWG_FORMATS
+
+    assert DEFAULT_DWG_FORMAT not in _LEGACY_DWG_FORMATS
+    assert all(
+        "IV_UNCONSUMED_SKETCHES" in upgraded
+        for upgraded in _LEGACY_DWG_FORMATS.values()
+    )
 
 
 def test_a_custom_dwg_format_is_left_alone(tmp_path):

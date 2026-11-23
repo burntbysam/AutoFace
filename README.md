@@ -96,7 +96,7 @@ flagged so you hear about it.
     "0.125": "125",
     "0.1875": "1875"
   },
-  "dwg_format": "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT;IV_ROLL_TANGENT;IV_TOOL_CENTER;IV_TOOL_CENTER_DOWN"
+  "dwg_format": "FLAT PATTERN DWG?InvisibleLayers=IV_BEND;IV_BEND_DOWN;IV_ARC_CENTERS;IV_TANGENT;IV_ROLL_TANGENT;IV_TOOL_CENTER;IV_TOOL_CENTER_DOWN;IV_UNCONSUMED_SKETCHES;IV_UNCONSUMED_SKETCH_CONSTRUCTION"
 }
 ```
 
@@ -108,13 +108,26 @@ flagged so you hear about it.
 - **dwg_format** — the Inventor DataIO format string. The default exports the
   cut profile only: bend centerlines (`IV_BEND`, `IV_BEND_DOWN`), center
   point markers for holes (`IV_ARC_CENTERS`) and for punched features/slots
-  (`IV_TOOL_CENTER`, `IV_TOOL_CENTER_DOWN`), and the bend-extent tangent
-  lines (`IV_TANGENT`, `IV_ROLL_TANGENT`) are all suppressed via
-  `InvisibleLayers`. To bring any of them back, remove that entry from the
-  list. If your Inventor version rejects the string
+  (`IV_TOOL_CENTER`, `IV_TOOL_CENTER_DOWN`), the bend-extent tangent
+  lines (`IV_TANGENT`, `IV_ROLL_TANGENT`), and sketch geometry
+  (`IV_UNCONSUMED_SKETCHES`, `IV_UNCONSUMED_SKETCH_CONSTRUCTION`) are all
+  suppressed via `InvisibleLayers`. To bring any of them back, remove that
+  entry from the list. If your Inventor version rejects the string
   (`AutoFace.exe --probe export` tells you), add `AcadVersion=2018&` in
   front of `InvisibleLayers`. Configs written by older AutoFace versions
   with a previous default are upgraded automatically.
+
+  Sketch geometry is the one to know about: a sketch left visible on a
+  part's flat pattern is not part of the solid, so it never belongs in the
+  cut profile — but Inventor exports it anyway, as loose lines, points and
+  even closed shapes beside the part. AutoFace drops it. If you ever put a
+  sketch on a flat pattern on purpose (an etch or scribe mark), remove
+  `IV_UNCONSUMED_SKETCHES` from the list to get it back, and expect every
+  other visible flat-pattern sketch to come back with it.
+  `IV_UNCONSUMED_SKETCH_CONSTRUCTION` is where Inventor 2025 and later put
+  the construction lines of those sketches; on 2024 and older that layer
+  does not exist, so if the export probe fails there, remove that entry
+  first.
 
 ## Updates
 
@@ -157,7 +170,8 @@ cleaned up automatically.
   skipped and flagged. The classifier is structured so descending is a
   one-case extension in a future version.
 - **One DWG flavor** — the single config format string is the only export
-  customization; it ships with bend lines and hole-center markers suppressed.
+  customization; it ships with everything but the cut profile suppressed
+  (bend lines, bend extents, center markers, sketch geometry).
 - **Two thicknesses ship in the table** (1/8" → `125`, 3/16" → `1875`).
   Anything else is skipped and flagged until added to the config.
 - Multi-body sheet metal parts use the document-level Thickness parameter;
