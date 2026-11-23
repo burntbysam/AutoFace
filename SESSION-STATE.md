@@ -43,14 +43,17 @@ Complete and tested (217 pytest cases + `--selftest`):
    description also reads as sheet — tubes/channels modeled as sheet
    metal classify 'Skip: not sheet per BOM' (silent); a blank description
    still exports but is flagged. Locked into --selftest.
-3. PUSHED, CI NOT YET CONFIRMED — v0.2.2: the default `dwg_format` also
+3. DONE — CI run #10 succeeded; the windows-latest-build release carries
+   AutoFace.exe v0.2.2 (build 10.fa460e1). v0.2.2: the default `dwg_format` also
    hides `IV_UNCONSUMED_SKETCHES` and `IV_UNCONSUMED_SKETCH_CONSTRUCTION`
    (the 2025+ construction-line layer). Trigger: export 8718-1103-6 carried
    a visible flat-pattern sketch (13 lines, 3 points, incl. a closed
    50 x 50 square beside the part). Shipped as a judgment call from the
    user's "What happened here?" — they have not confirmed it yet; revert is
-   removing those two entries from the default. Next step: confirm the CI
-   run for this commit is green and the release shows 0.2.2.
+   removing those two entries from the default. Still open on the user's
+   side: a re-export of that part on live Inventor 2025.3 to confirm the
+   sketch geometry is gone (the old .dwg must be moved first — AutoFace
+   never overwrites).
    Not built, only offered: flagging rows whose flat pattern has a visible
    sketch (FlatPattern.Sketches / PlanarSketch.Visible — unverified live).
 
